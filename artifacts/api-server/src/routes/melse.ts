@@ -16,6 +16,7 @@ import {
   technicians,
   type Booking,
 } from "../lib/melse-store";
+import { canTransition } from "../lib/job-state";
 
 const router: IRouter = Router();
 
@@ -73,6 +74,9 @@ router.patch("/bookings/:id/status", (req, res) => {
   const booking = params.success ? findBooking(params.data.id) : undefined;
   if (!params.success || !body.success) return res.status(400).json({ error: "Invalid booking status." });
   if (!booking) return res.status(404).json({ error: "Booking not found." });
+  if (!canTransition(booking.status, body.data.status)) {
+    return res.status(409).json({ error: `A job cannot move from ${booking.status} to ${body.data.status}.` });
+  }
   booking.status = body.data.status;
   booking.progress = body.data.status === "COMPLETED" ? 100 : body.data.status === "IN_PROGRESS" ? 75 : body.data.status === "ARRIVED" ? 55 : 35;
   return res.json(booking);

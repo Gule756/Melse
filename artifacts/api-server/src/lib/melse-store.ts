@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { calculateEstimate } from "./pricing";
 
 export type BookingStatus =
   | "REQUESTED"
@@ -78,12 +79,16 @@ export const bookings: Booking[] = [];
 
 export function createRequest(input: Omit<ServiceRequest, "id" | "createdAt" | "priceMin" | "priceMax" | "arrival">): ServiceRequest {
   const service = services.find((item) => item.slug === input.serviceSlug) ?? services[0];
+  const estimate = calculateEstimate(
+    { baseMin: service.startingPrice, baseMax: service.priceMax, emergencyFee: 150, commissionRate: 0.15 },
+    { isEmergency: input.urgency === "Emergency", distanceKm: 2.4 },
+  );
   const request: ServiceRequest = {
     ...input,
     id: `req-${randomUUID().slice(0, 8)}`,
     createdAt: new Date().toISOString(),
-    priceMin: service.startingPrice,
-    priceMax: service.priceMax,
+    priceMin: estimate.minPrice,
+    priceMax: estimate.maxPrice,
     arrival: service.arrival,
   };
   requests.unshift(request);
