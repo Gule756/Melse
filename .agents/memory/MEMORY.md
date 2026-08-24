@@ -1,0 +1,1 @@
+- [OpenAPI/Zod numeric fields](openapi-zod-compatibility.md) — prefer number over integer with the current generated validator runtime.

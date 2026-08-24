@@ -1,6 +1,6 @@
-# [Project name]
+# Melse Local Services
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Melse helps people in Addis Ababa request trusted local professionals, see transparent ETB estimates, book service, and track the job.
 
 ## Run & Operate
 
@@ -22,23 +22,29 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/melse/src/App.tsx` — customer, technician, and admin web experiences
+- `artifacts/melse/src/index.css` — shared visual language and responsive styling
+- `artifacts/api-server/src/lib/melse-store.ts` — isolated MVP service catalog and in-process domain state
+- `artifacts/api-server/src/routes/melse.ts` — Melse REST endpoints
+- `lib/api-spec/openapi.yaml` — source-of-truth API contract
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The MVP keeps the managed-service loop short: request, estimate, verified technician, booking, tracking.
+- Booking status values are centralized as a domain union and accepted through the API contract.
+- The payment surface is represented in booking state and UI, but no provider is claimed until a real Ethiopian payment integration is connected.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+Customers can browse services, create requests with problem/location/urgency details, view ETB estimates, select verified technicians, book work, and track status. Technician and admin role views provide the first operational surfaces.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+The product is Ethiopia-first: ETB pricing, Addis Ababa sample locations, mobile-first workflows, and trust signals are more important than feature count.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+The current MVP store is intentionally isolated in the API layer; replace it with the normalized database modules before treating the app as production-ready.
 
 ## Pointers
 

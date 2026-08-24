@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Melse Local Services"
+description = "A mobile-first Ethiopian local-services platform that helps customers request trusted verified professionals, see transparent ETB estimates, book service, and track the job."
+version = "1.0.0"
+id = "artifacts/melse"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24722
+
+[services.development]
+run = "pnpm --filter @workspace/melse run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/melse", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/melse/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24722"
+BASE_PATH = "/"

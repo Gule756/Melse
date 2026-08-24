@@ -1,0 +1,1664 @@
+# MASTER PROMPT — BUILD MELSE
+
+You are an elite product engineering team responsible for designing and building a production-quality application called **Melse**.
+
+Act simultaneously as:
+
+* Senior Product Manager
+* UX/UI Designer
+* Software Architect
+* Senior Frontend Engineer
+* Senior Backend Engineer
+* Database Architect
+* Security Engineer
+* QA Engineer
+* DevOps Engineer
+* Performance Engineer
+
+Do NOT treat this as a simple demo, landing page, or generic marketplace.
+
+Build a **real, scalable, maintainable local-services platform for Ethiopia**.
+
+---
+
+# 1. PRODUCT VISION
+
+Melse is a trusted service platform where customers can quickly request verified professionals for real-world services such as:
+
+* Plumbing
+* Electrical work
+* Appliance repair
+* AC/refrigeration
+* Cleaning
+
+Later it should be easy to expand into:
+
+* Moving
+* Painting
+* Carpentry
+* Welding
+* Solar installation
+* Generator maintenance
+* CCTV installation
+* Internet/network installation
+* Pest control
+* Beauty/home services
+
+The core value proposition is:
+
+> **“When something needs fixing, Melse gets the right verified person to you.”**
+
+Melse must NOT feel like a classified-ads website.
+
+It must feel like a **managed service**.
+
+Melse controls:
+
+* Technician verification
+* Service categories
+* Job assignment
+* Pricing framework
+* Customer communication
+* Payments
+* Ratings
+* Complaints
+* Service history
+* Guarantees
+* Business maintenance
+
+The fundamental customer problem is:
+
+> “I have a problem right now. I need someone trustworthy, available, reasonably priced, and capable of solving it.”
+
+The product must solve that problem with as few steps as possible.
+
+---
+
+# 2. PRIMARY PRODUCT PRINCIPLES
+
+Everything you build must follow these principles:
+
+### Simplicity first
+
+A customer should understand what Melse does within seconds.
+
+A customer should be able to request a service without learning how the application works.
+
+### Trust first
+
+The platform must communicate:
+
+* Verified professionals
+* Transparent pricing
+* Ratings
+* Estimated arrival
+* Service guarantees
+* Secure payment
+* Support
+
+### Speed first
+
+For urgent problems, the user should be able to request help extremely quickly.
+
+### Mobile first
+
+Most customers and technicians will use Android phones.
+
+Design primarily for mobile.
+
+The desktop experience must still be responsive and professional.
+
+### Ethiopia first
+
+Design for Ethiopian users, connectivity conditions, currencies, phone numbers, language expansion, and realistic local workflows.
+
+Use **ETB/Birr** for pricing.
+
+Do not build assumptions around US-only services or infrastructure.
+
+### Build for expansion
+
+The architecture must make it easy to add:
+
+* New service categories
+* New locations
+* New payment providers
+* New notification providers
+* New user roles
+* New business features
+* New pricing models
+
+without rewriting the application.
+
+---
+
+# 3. USER TYPES
+
+Build the architecture around these roles.
+
+## CUSTOMER
+
+Can:
+
+* Register/login
+* Browse services
+* Search services
+* Request a service
+* Describe a problem
+* Upload photos
+* Share location
+* View estimated price
+* View available technicians
+* Book a technician
+* Track job status
+* Contact support
+* Make payment
+* View invoices
+* Rate technicians
+* Report problems
+* View service history
+* View warranties/guarantees
+* Manage profile
+
+---
+
+## TECHNICIAN
+
+Can:
+
+* Register
+* Submit identity information
+* Submit skills
+* Submit experience
+* Submit certificates
+* Submit references
+* Upload previous work
+* Select service categories
+* Set service area
+* Set availability
+* Receive jobs
+* Accept/reject jobs
+* Navigate to customer
+* Update job status
+* Upload before/after photos
+* Record work performed
+* Record materials used
+* Complete jobs
+* View earnings
+* View ratings
+* View job history
+* Contact support
+
+Technicians must NOT automatically become verified after registration.
+
+Verification must be an explicit workflow.
+
+Possible states:
+
+`Pending → Under Review → Verified → Suspended → Rejected`
+
+---
+
+## ADMIN
+
+Build a complete administration system.
+
+Admins can:
+
+* Manage customers
+* Manage technicians
+* Verify technicians
+* Review submitted documents
+* Approve/reject technicians
+* Manage service categories
+* Manage service areas
+* Manage pricing rules
+* Manage jobs
+* Assign/reassign technicians
+* Monitor active jobs
+* Handle disputes
+* Handle complaints
+* Manage guarantees
+* Manage payments
+* View revenue
+* View platform analytics
+* Manage promotions
+* Manage business accounts
+* Suspend accounts
+* View audit logs
+
+---
+
+## BUSINESS
+
+Businesses such as:
+
+* Hotels
+* Restaurants
+* Offices
+* Apartment buildings
+* Property managers
+* Other organizations
+
+can have business accounts.
+
+Business users can:
+
+* Create maintenance requests
+* Manage multiple locations
+* Manage assets
+* Track maintenance
+* View technicians
+* Track service history
+* View invoices
+* Manage employees
+* Track service-level agreements
+* View reports
+
+---
+
+# 4. CUSTOMER EXPERIENCE
+
+The customer interface must be extremely simple.
+
+## HOME SCREEN
+
+Immediately show:
+
+### “What do you need help with?”
+
+Then prominent service cards:
+
+🔧 Appliance Repair
+⚡ Electrician
+🚰 Plumber
+❄️ AC & Refrigeration
+🧹 Cleaning
+
+Also include:
+
+* Search
+* Emergency service
+* Recent services
+* Previous bookings
+
+Do NOT overload the homepage.
+
+---
+
+# 5. SERVICE REQUEST FLOW
+
+The ideal flow is:
+
+### Step 1
+
+Customer chooses:
+
+> Plumber
+
+### Step 2
+
+Show common problems:
+
+* Leaking pipe
+* Blocked drain
+* Broken faucet
+* Toilet problem
+* Water installation
+* Other
+
+### Step 3
+
+Customer describes the problem.
+
+Allow:
+
+* Text
+* Photos
+* Optional voice input architecture
+
+### Step 4
+
+Location.
+
+Allow:
+
+* Current location
+* Saved address
+* Manual address
+
+### Step 5
+
+Show:
+
+**Estimated price**
+
+Example:
+
+> ETB 400–700
+
+And:
+
+> Estimated arrival: 25–35 minutes
+
+### Step 6
+
+Show suitable verified technicians.
+
+Example:
+
+**Dawit**
+⭐ 4.9
+Verified
+25 min away
+ETB 400–700
+
+### Step 7
+
+Customer taps:
+
+# BOOK
+
+### Step 8
+
+Track technician.
+
+### Step 9
+
+Technician arrives.
+
+### Step 10
+
+Work completed.
+
+### Step 11
+
+Customer confirms completion.
+
+### Step 12
+
+Payment.
+
+### Step 13
+
+Rating/review.
+
+This entire journey must feel effortless.
+
+---
+
+# 6. JOB STATUS SYSTEM
+
+Implement a reusable job state machine.
+
+Example:
+
+```text
+REQUESTED
+↓
+SEARCHING
+↓
+ASSIGNED
+↓
+ACCEPTED
+↓
+TECHNICIAN_EN_ROUTE
+↓
+ARRIVED
+↓
+IN_PROGRESS
+↓
+COMPLETED
+↓
+CUSTOMER_CONFIRMED
+↓
+PAID
+↓
+RATED
+```
+
+Also support:
+
+```text
+CANCELLED
+DISPUTED
+REFUNDED
+REASSIGNED
+```
+
+Do NOT scatter status strings throughout the code.
+
+Create a centralized status model/enumeration.
+
+---
+
+# 7. VERIFIED TECHNICIAN SYSTEM
+
+Technician verification is one of the most important parts of Melse.
+
+Technicians can submit:
+
+* Identification
+* Phone number
+* Experience
+* References
+* Certificates
+* Previous work
+* Service categories
+
+Admins review submissions.
+
+The UI should clearly communicate:
+
+# Melse Verified
+
+Use verification badges consistently.
+
+Never display a technician as verified unless the backend verification state confirms it.
+
+---
+
+# 8. PRICING SYSTEM
+
+Do not hard-code prices into UI components.
+
+Create a reusable pricing architecture.
+
+A service can have:
+
+* Base price
+* Minimum price
+* Maximum price
+* Emergency fee
+* Distance fee
+* Material fee
+* Additional labor
+* Platform commission
+
+Example:
+
+```text
+Service:
+Sink Installation
+
+Base estimate:
+ETB 500–700
+
+Emergency:
++ ETB X
+
+Additional materials:
+Calculated separately
+```
+
+The frontend should consume pricing data from the backend.
+
+Admins should be able to modify pricing rules without changing frontend code.
+
+---
+
+# 9. COMMISSION SYSTEM
+
+Support platform commission.
+
+Example:
+
+Customer payment:
+
+ETB 1,000
+
+Technician:
+
+ETB 850
+
+Melse:
+
+ETB 150
+
+Do NOT hard-code the 15% commission.
+
+Create configurable commission rules.
+
+Support future possibilities:
+
+* Percentage commission
+* Fixed commission
+* Category-specific commission
+* Technician-specific commission
+* Promotional commission
+
+---
+
+# 10. SERVICE GUARANTEE
+
+Build a reusable guarantee system.
+
+Example:
+
+> 7-day service guarantee
+
+If the same issue returns during the guarantee period:
+
+Customer can create a warranty claim.
+
+The system should track:
+
+* Original job
+* Service date
+* Guarantee duration
+* Expiration date
+* Claim status
+* Resolution
+* Assigned technician
+* Admin decision
+
+---
+
+# 11. PAYMENTS
+
+Create a payment abstraction layer.
+
+Do NOT tightly couple the entire application to one payment provider.
+
+Create a provider interface so Ethiopian payment providers can be added or replaced later.
+
+Example architecture:
+
+```text
+PaymentService
+    ↓
+PaymentProviderInterface
+    ↓
+Provider A
+Provider B
+Provider C
+```
+
+Support:
+
+* Payment initiation
+* Payment confirmation
+* Payment failure
+* Refunds
+* Transaction history
+* Payment receipts
+
+Never trust payment success based only on frontend state.
+
+Verify payments server-side.
+
+---
+
+# 12. NOTIFICATIONS
+
+Create a reusable notification system.
+
+Support architecture for:
+
+* Push notifications
+* SMS
+* Email
+* Telegram
+* In-app notifications
+
+Do not place notification logic directly inside controllers/components.
+
+Use a centralized notification service.
+
+Example:
+
+```text
+NotificationService
+├── PushProvider
+├── SMSProvider
+├── EmailProvider
+└── TelegramProvider
+```
+
+---
+
+# 13. LOCATION
+
+Create location functionality that supports:
+
+* Customer coordinates
+* Technician coordinates
+* Service areas
+* Distance calculation
+* Nearby technician search
+* Estimated arrival
+* Address storage
+
+Do NOT hard-code one map provider throughout the application.
+
+Use a map abstraction layer.
+
+---
+
+# 14. TECHNICIAN MATCHING
+
+Create a reusable matching system.
+
+Technicians can be ranked using factors such as:
+
+* Service category
+* Availability
+* Distance
+* Rating
+* Verification
+* Response time
+* Completion rate
+* Current workload
+
+Do not bury matching logic inside UI code.
+
+Create a dedicated backend service.
+
+Example:
+
+```text
+TechnicianMatchingService
+```
+
+This should be easy to improve later without rewriting the booking system.
+
+---
+
+# 15. CUSTOMER SERVICE HISTORY
+
+Every completed job should create a permanent service record.
+
+Store:
+
+* Service
+* Technician
+* Date
+* Price
+* Materials
+* Photos
+* Notes
+* Rating
+* Guarantee
+* Payment
+* Invoice
+
+This becomes the customer's home/service maintenance history.
+
+---
+
+# 16. BUSINESS MAINTENANCE
+
+Create a separate but reusable business module.
+
+Businesses should be able to manage:
+
+```text
+Business
+├── Locations
+├── Employees
+├── Assets
+├── Maintenance Requests
+├── Service History
+├── Invoices
+└── Reports
+```
+
+Example assets:
+
+* AC units
+* Refrigerators
+* Generators
+* Plumbing systems
+* Electrical systems
+
+Make this architecture extensible.
+
+---
+
+# 17. UI/UX REQUIREMENTS
+
+The UI must be:
+
+* Modern
+* Clean
+* Professional
+* Trustworthy
+* Fast
+* Mobile-first
+* Accessible
+* Easy to understand
+
+Avoid:
+
+* Excessive animations
+* Giant dashboards
+* Unnecessary cards
+* Too many buttons
+* Complicated forms
+* Dense tables on mobile
+* Excessive colors
+* Decorative UI that doesn't help the user
+
+Use strong visual hierarchy.
+
+Every screen should have one obvious primary action.
+
+---
+
+# 18. DESIGN SYSTEM
+
+Create a centralized design system.
+
+Do NOT independently style every component.
+
+Create reusable:
+
+* Colors
+* Typography
+* Spacing
+* Border radius
+* Shadows
+* Buttons
+* Inputs
+* Cards
+* Dialogs
+* Bottom sheets
+* Badges
+* Status indicators
+* Navigation
+* Loading states
+* Error states
+* Empty states
+
+Components must be reusable.
+
+Example:
+
+```text
+Button
+Input
+ServiceCard
+TechnicianCard
+PriceEstimate
+StatusBadge
+BookingCard
+Rating
+LocationSelector
+PaymentSummary
+```
+
+Do not duplicate nearly identical components.
+
+---
+
+# 19. CODE QUALITY — CRITICAL
+
+The code must be production-quality.
+
+Follow:
+
+* SOLID principles
+* DRY
+* Separation of concerns
+* Clean architecture
+* Strong typing
+* Clear naming
+* Small focused functions
+* Reusable components
+* Reusable services
+* Modular architecture
+
+### NEVER:
+
+* Duplicate large blocks of code
+* Put business logic inside UI components
+* Hard-code database values into frontend components
+* Hard-code API URLs throughout the application
+* Hard-code pricing
+* Hard-code commission percentages
+* Duplicate validation logic
+* Duplicate API request logic
+* Create unnecessary files
+* Create giant components
+* Use random inconsistent naming
+
+---
+
+# 20. REUSABILITY REQUIREMENT
+
+Before creating a new component/function/service, ask:
+
+> “Does something reusable already exist?”
+
+If yes, reuse it.
+
+If multiple screens need the same behavior, create a shared abstraction.
+
+Examples:
+
+Instead of:
+
+```text
+CustomerBookingCard
+TechnicianBookingCard
+AdminBookingCard
+```
+
+when appropriate, create:
+
+```text
+BookingCard
+```
+
+with configurable variants.
+
+Instead of repeating:
+
+```text
+fetch()
+try/catch
+loading
+error
+```
+
+create reusable API/data-fetching utilities.
+
+Instead of repeating validation:
+
+Create shared validation schemas.
+
+Instead of repeating formatting:
+
+Create utilities for:
+
+* Currency
+* Dates
+* Phone numbers
+* Addresses
+* Status
+* Distance
+
+---
+
+# 21. ARCHITECTURE
+
+Use a modular architecture.
+
+Recommended structure:
+
+```text
+Frontend
+├── components
+├── screens/pages
+├── layouts
+├── features
+│   ├── auth
+│   ├── services
+│   ├── bookings
+│   ├── technicians
+│   ├── payments
+│   ├── notifications
+│   ├── profile
+│   └── business
+├── hooks
+├── services
+├── state
+├── utils
+├── types
+└── constants
+```
+
+Backend:
+
+```text
+Backend
+├── auth
+├── users
+├── technicians
+├── services
+├── bookings
+├── pricing
+├── matching
+├── payments
+├── notifications
+├── reviews
+├── guarantees
+├── businesses
+├── admin
+└── shared
+```
+
+Keep modules independent.
+
+A change to the pricing module should not require rewriting authentication.
+
+---
+
+# 22. DATABASE
+
+Design a normalized relational database.
+
+Potential entities:
+
+```text
+users
+technicians
+technician_documents
+technician_skills
+service_categories
+services
+service_requests
+bookings
+booking_status_history
+pricing_rules
+locations
+payments
+payment_transactions
+reviews
+guarantees
+guarantee_claims
+notifications
+businesses
+business_users
+business_locations
+assets
+maintenance_requests
+invoices
+audit_logs
+```
+
+Use proper:
+
+* Primary keys
+* Foreign keys
+* Indexes
+* Unique constraints
+* Timestamps
+* Soft deletion where appropriate
+
+Avoid storing everything as one giant JSON object.
+
+---
+
+# 23. SECURITY
+
+Implement:
+
+* Secure authentication
+* Authorization
+* Role-based access control
+* Input validation
+* Server-side validation
+* Secure password handling
+* Rate limiting
+* API authorization
+* File upload validation
+* Secure payment verification
+* Audit logging
+* Protection against unauthorized access
+
+A customer must never be able to access another customer's private information.
+
+A technician must never access unauthorized customer information.
+
+Admin functions must be protected server-side.
+
+Never rely on frontend role checks for security.
+
+---
+
+# 24. ERROR HANDLING
+
+Every important operation must have:
+
+* Loading state
+* Success state
+* Error state
+* Empty state
+* Retry behavior where appropriate
+
+Never show raw backend errors to users.
+
+Convert technical errors into useful messages.
+
+Example:
+
+Instead of:
+
+> `500 Internal Server Error`
+
+show:
+
+> “We couldn't complete your request. Please try again.”
+
+Log the technical error internally.
+
+---
+
+# 25. OFFLINE / POOR CONNECTIVITY
+
+Assume some users may have unreliable internet.
+
+The application should:
+
+* Handle network failures gracefully
+* Cache appropriate data
+* Avoid unnecessary API requests
+* Retry safe requests
+* Preserve unsent form data where practical
+* Show clear connection status
+* Never lose a customer's service request silently
+
+Do not pretend the application is offline-capable if it isn't.
+
+Implement only reliable offline functionality.
+
+---
+
+# 26. PERFORMANCE
+
+Optimize for low-to-mid-range Android devices and mobile networks.
+
+Use:
+
+* Lazy loading
+* Pagination
+* Image compression
+* Image lazy loading
+* Caching
+* Debounced search
+* Efficient database queries
+* Proper indexes
+* Minimal unnecessary network requests
+
+Do not load an entire database collection when pagination is sufficient.
+
+---
+
+# 27. API DESIGN
+
+Create clean REST APIs or an equally well-structured API architecture.
+
+Use consistent patterns.
+
+Example:
+
+```text
+GET    /services
+GET    /services/{id}
+
+POST   /service-requests
+GET    /service-requests/{id}
+
+POST   /bookings
+PATCH  /bookings/{id}/status
+
+GET    /technicians/nearby
+GET    /technicians/{id}
+
+POST   /payments
+GET    /payments/{id}
+
+POST   /reviews
+```
+
+Keep API responses consistent.
+
+Use centralized error handling.
+
+Use DTOs/resources/serializers rather than exposing raw database models blindly.
+
+---
+
+# 28. AUTHENTICATION
+
+Support:
+
+* Registration
+* Login
+* Logout
+* Password reset
+* Phone verification architecture
+* Session/token management
+* Role-based permissions
+
+Authentication must be reusable across all user types.
+
+Do not create separate duplicated authentication systems for each role.
+
+---
+
+# 29. ADMIN DASHBOARD
+
+The admin dashboard should prioritize operations.
+
+Show:
+
+### Today
+
+* Active jobs
+* Pending technician verifications
+* Unassigned requests
+* Completed jobs
+* Revenue
+* Complaints
+
+### Live operations
+
+Show jobs with statuses:
+
+* Searching
+* Assigned
+* En route
+* Arrived
+* In progress
+* Completed
+
+Admin should be able to intervene quickly.
+
+---
+
+# 30. TECHNICIAN DASHBOARD
+
+Technicians should immediately see:
+
+### Current job
+
+Customer
+Service
+Location
+Estimated earnings
+Status
+
+Primary actions:
+
+**Accept**
+
+**Navigate**
+
+**Arrived**
+
+**Start Job**
+
+**Complete Job**
+
+Do not overwhelm technicians with analytics when they need to perform a job.
+
+---
+
+# 31. CUSTOMER DASHBOARD
+
+Prioritize:
+
+* Active booking
+* Request service
+* Previous services
+* Saved addresses
+* Payments
+* Support
+
+The customer should never need to navigate through a complicated dashboard just to request help.
+
+---
+
+# 32. RESPONSIVE DESIGN
+
+The application must work well on:
+
+* Small Android phones
+* Large phones
+* Tablets
+* Desktop
+* Admin desktop screens
+
+Do not simply stretch the mobile design onto desktop.
+
+Use responsive layouts appropriate for each context.
+
+---
+
+# 33. ACCESSIBILITY
+
+Implement:
+
+* Readable typography
+* Proper contrast
+* Touch-friendly controls
+* Keyboard accessibility on web
+* Semantic HTML where applicable
+* Accessible labels
+* Clear error messages
+* Screen-reader-friendly controls where applicable
+
+---
+
+# 34. INTERNATIONALIZATION
+
+Architect the application so additional languages can be added later.
+
+Do not scatter user-facing strings throughout business logic.
+
+Centralize translations.
+
+Initially support English, but structure the application so Amharic can be added without rewriting the UI.
+
+---
+
+# 35. TESTING
+
+Do not stop after making the UI look correct.
+
+Implement tests for critical business logic.
+
+At minimum test:
+
+### Authentication
+
+* Registration
+* Login
+* Authorization
+
+### Booking
+
+* Request creation
+* Assignment
+* Acceptance
+* Cancellation
+* Completion
+
+### Pricing
+
+* Estimates
+* Commission
+* Emergency fees
+
+### Technician
+
+* Verification
+* Availability
+* Matching
+
+### Payments
+
+* Success
+* Failure
+* Refund
+
+### Guarantees
+
+* Creation
+* Expiration
+* Claims
+
+### Permissions
+
+Ensure users cannot access unauthorized resources.
+
+---
+
+# 36. MOCK DATA
+
+During development, use realistic Ethiopian sample data.
+
+Examples:
+
+Technicians:
+
+* Dawit
+* Abel
+* Hana
+
+Locations can use Addis Ababa examples.
+
+Prices must use:
+
+**ETB**
+
+Do not use unrealistic US dollar examples.
+
+Clearly separate mock/demo data from production data.
+
+Never allow mock data to accidentally become a production dependency.
+
+---
+
+# 37. DEVELOPMENT STRATEGY
+
+DO NOT attempt to build every future feature immediately.
+
+Build in phases.
+
+## PHASE 1 — MVP
+
+Implement only:
+
+Customer:
+
+* Registration/login
+* Home
+* Service categories
+* Service request
+* Location
+* Technician selection
+* Booking
+* Job tracking
+* Payment architecture
+* Rating
+
+Technician:
+
+* Registration
+* Verification
+* Availability
+* Job requests
+* Job status
+* Earnings
+
+Admin:
+
+* Technician verification
+* Service management
+* Job management
+* User management
+* Basic analytics
+
+---
+
+## PHASE 2
+
+Add:
+
+* Service guarantees
+* Business accounts
+* Invoices
+* Notifications
+* Advanced matching
+* Better pricing
+* Service history
+
+---
+
+## PHASE 3
+
+Add:
+
+* HomeCare subscriptions
+* Advanced business maintenance
+* Asset management
+* Predictive maintenance
+* Advanced analytics
+* Promotions
+* Loyalty
+* AI-assisted support
+
+Do NOT build Phase 3 features into the MVP unless required by the architecture.
+
+---
+
+# 38. AI FEATURES
+
+Design the architecture so AI can be added later.
+
+Potential future AI:
+
+* Problem classification
+* Photo-based issue detection
+* Technician matching
+* Price recommendations
+* Customer support
+* Fraud detection
+* Demand forecasting
+
+Do not add fake AI simply to make the application appear advanced.
+
+Only implement AI where it provides measurable user value.
+
+---
+
+# 39. IMPORTANT: DO NOT FAKE FUNCTIONALITY
+
+If a feature cannot be fully implemented in the current environment:
+
+Do NOT pretend it works.
+
+Instead:
+
+1. Build the correct interface.
+2. Create a clean service abstraction.
+3. Use a clearly isolated mock provider if necessary.
+4. Document what needs a real provider.
+5. Keep the production implementation path clean.
+
+Never create fake payment confirmations that look real.
+
+Never fake technician GPS tracking as real tracking.
+
+Never claim verification occurred when it did not.
+
+---
+
+# 40. ENVIRONMENT CONFIGURATION
+
+All environment-specific values must be configurable.
+
+Use environment variables for:
+
+* API URL
+* Database credentials
+* Authentication secrets
+* Payment keys
+* Map keys
+* Notification credentials
+* Storage credentials
+
+Never commit secrets into source code.
+
+Provide a safe example environment configuration.
+
+---
+
+# 41. CODE ORGANIZATION RULE
+
+Before adding code:
+
+1. Inspect the existing architecture.
+2. Identify reusable components.
+3. Identify existing services/utilities.
+4. Reuse them where possible.
+5. Add a new abstraction only when justified.
+6. Keep modules cohesive.
+7. Avoid unnecessary complexity.
+
+When refactoring:
+
+> Improve the architecture without breaking existing functionality.
+
+Do not rewrite working code unnecessarily.
+
+---
+
+# 42. QUALITY GATE
+
+Before considering the application complete, inspect the entire project.
+
+Check for:
+
+* Duplicate code
+* Dead code
+* Unused imports
+* Hard-coded values
+* Security problems
+* Broken links
+* Broken routes
+* Missing loading states
+* Missing error states
+* Inconsistent UI
+* Poor mobile layouts
+* API inconsistencies
+* Database problems
+* Missing validation
+* Authorization vulnerabilities
+* Performance problems
+
+Fix problems you find.
+
+Do not simply report them.
+
+---
+
+# 43. FINAL USER EXPERIENCE STANDARD
+
+When a new user opens Melse, they should immediately understand:
+
+### What is this?
+
+> Get trusted local professionals.
+
+### What can I do?
+
+> Request a service.
+
+### Why should I trust it?
+
+> Verified professionals + transparent pricing + service guarantee.
+
+### What do I do next?
+
+> Choose a service.
+
+The application should make the answer obvious.
+
+---
+
+# 44. MOST IMPORTANT RULE
+
+Do not optimize for the number of features.
+
+Optimize for:
+
+> **How quickly can a real person with a real problem get reliable help?**
+
+If a feature makes the product more complicated without significantly improving this outcome, do not add it.
+
+---
+
+# 45. BUILD INSTRUCTIONS FOR THE AI CODING AGENT
+
+You are now responsible for implementing this application.
+
+Follow this order:
+
+1. Analyze the complete requirements.
+2. Define the architecture.
+3. Define the database schema.
+4. Define reusable design-system components.
+5. Define API contracts.
+6. Build authentication.
+7. Build customer service-request flow.
+8. Build technician workflow.
+9. Build admin workflow.
+10. Connect the flows.
+11. Implement validation and security.
+12. Implement responsive UI.
+13. Add realistic mock/demo data where necessary.
+14. Test critical workflows.
+15. Review the codebase for duplication and architectural problems.
+16. Refactor where necessary.
+17. Fix bugs.
+18. Verify the complete user journey.
+
+Do not generate thousands of lines of disconnected code at once.
+
+Build incrementally while keeping the architecture coherent.
+
+After every major feature, verify that existing functionality still works.
+
+---
+
+# 46. DEFINITION OF DONE
+
+A feature is NOT complete merely because its screen exists.
+
+A feature is complete only when:
+
+* UI exists
+* User interaction works
+* Validation works
+* Backend logic works
+* Database interaction works
+* Authorization works
+* Error handling works
+* Loading states work
+* Mobile layout works
+* Data is persisted correctly
+* Existing features remain functional
+* Code is reusable
+* Code is maintainable
+* No obvious security issue exists
+
+---
+
+# 47. CORE PRODUCT LOOP
+
+Everything should ultimately reinforce this loop:
+
+```text
+CUSTOMER HAS PROBLEM
+        ↓
+OPEN MELSE
+        ↓
+SELECT SERVICE
+        ↓
+DESCRIBE PROBLEM
+        ↓
+LOCATION
+        ↓
+SEE ESTIMATE
+        ↓
+SELECT VERIFIED TECHNICIAN
+        ↓
+BOOK
+        ↓
+TRACK
+        ↓
+TECHNICIAN ARRIVES
+        ↓
+JOB COMPLETED
+        ↓
+PAY
+        ↓
+RATE
+        ↓
+GUARANTEE / SERVICE HISTORY
+```
+
+Make this experience exceptionally good.
+
+---
+
+# FINAL INSTRUCTION
+
+Build Melse as if it will eventually serve millions of users.
+
+Do not over-engineer the MVP, but do not create throwaway code either.
+
+The MVP should be simple.
+
+The underlying architecture should be strong.
+
+Every major piece of functionality must be modular, reusable, testable, secure, and replaceable.
+
+**Prioritize:**
+
+1. User experience
+2. Reliability
+3. Trust
+4. Reusability
+5. Maintainability
+6. Security
+7. Performance
+8. Scalability
+9. Visual quality
+10. Feature count
+
+The final product should feel like a real startup product—not an AI-generated prototype.

@@ -10,6 +10,16 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: services
+    description: Service catalog
+  - name: technicians
+    description: Verified technician discovery
+  - name: requests
+    description: Customer service requests
+  - name: bookings
+    description: Booking and job tracking
+  - name: dashboard
+    description: Operational summaries
 paths:
   /healthz:
     get:
@@ -24,6 +34,150 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /services:
+    get:
+      operationId: listServices
+      tags: [services]
+      summary: List available services
+      responses:
+        "200":
+          description: Service catalog
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Service"
+  /technicians:
+    get:
+      operationId: listTechnicians
+      tags: [technicians]
+      summary: List verified technicians
+      parameters:
+        - name: serviceSlug
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: requestId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Matching verified technicians
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Technician"
+  /service-requests:
+    post:
+      operationId: createServiceRequest
+      tags: [requests]
+      summary: Create a customer service request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceRequestInput"
+      responses:
+        "201":
+          description: Created service request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceRequest"
+    get:
+      operationId: listServiceRequests
+      tags: [requests]
+      summary: List recent service requests
+      responses:
+        "200":
+          description: Recent requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServiceRequest"
+  /bookings:
+    post:
+      operationId: createBooking
+      tags: [bookings]
+      summary: Book a technician for a request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingInput"
+      responses:
+        "201":
+          description: Created booking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+  /bookings/{id}:
+    get:
+      operationId: getBooking
+      tags: [bookings]
+      summary: Get booking tracking details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Booking details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "404":
+          description: Booking not found
+  /bookings/{id}/status:
+    patch:
+      operationId: updateBookingStatus
+      tags: [bookings]
+      summary: Update the current job status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingStatusInput"
+      responses:
+        "200":
+          description: Updated booking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get customer dashboard summary
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +187,103 @@ components:
           type: string
       required:
         - status
+    Service:
+      type: object
+      required: [id, slug, name, description, icon, startingPrice, priceMax, arrival, accent]
+      properties:
+        id: { type: string }
+        slug: { type: string }
+        name: { type: string }
+        description: { type: string }
+        icon: { type: string }
+        startingPrice: { type: number }
+        priceMax: { type: number }
+        arrival: { type: string }
+        accent: { type: string }
+    Technician:
+      type: object
+      required: [id, name, initials, rating, reviews, verified, distance, eta, earnings, specialty, available]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        initials: { type: string }
+        rating: { type: number }
+        reviews: { type: number }
+        verified: { type: boolean }
+        distance: { type: string }
+        eta: { type: string }
+        earnings: { type: string }
+        specialty: { type: string }
+        available: { type: boolean }
+    ServiceRequestInput:
+      type: object
+      required: [serviceSlug, problem, description, address]
+      properties:
+        serviceSlug: { type: string }
+        problem: { type: string }
+        description: { type: string }
+        address: { type: string }
+        urgency: { type: string }
+    ServiceRequest:
+      allOf:
+        - $ref: "#/components/schemas/ServiceRequestInput"
+        - type: object
+          required: [id, createdAt, priceMin, priceMax, arrival]
+          properties:
+            id: { type: string }
+            createdAt: { type: string }
+            priceMin: { type: number }
+            priceMax: { type: number }
+            arrival: { type: string }
+    BookingInput:
+      type: object
+      required: [requestId, technicianId]
+      properties:
+        requestId: { type: string }
+        technicianId: { type: string }
+    Booking:
+      type: object
+      required: [id, requestId, technicianId, technicianName, serviceName, address, status, priceMin, priceMax, eta, createdAt, progress]
+      properties:
+        id: { type: string }
+        requestId: { type: string }
+        technicianId: { type: string }
+        technicianName: { type: string }
+        serviceName: { type: string }
+        address: { type: string }
+        status:
+          type: string
+          enum: [REQUESTED, SEARCHING, ASSIGNED, ACCEPTED, TECHNICIAN_EN_ROUTE, ARRIVED, IN_PROGRESS, COMPLETED, CUSTOMER_CONFIRMED, PAID, RATED, CANCELLED, DISPUTED, REFUNDED, REASSIGNED]
+        priceMin: { type: number }
+        priceMax: { type: number }
+        eta: { type: string }
+        createdAt: { type: string }
+        progress: { type: number }
+    BookingStatusInput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [REQUESTED, SEARCHING, ASSIGNED, ACCEPTED, TECHNICIAN_EN_ROUTE, ARRIVED, IN_PROGRESS, COMPLETED, CUSTOMER_CONFIRMED, PAID, RATED, CANCELLED, DISPUTED, REFUNDED, REASSIGNED]
+    DashboardSummary:
+      type: object
+      required: [activeBooking, recentRequests, savedAddress, trustStats]
+      properties:
+        activeBooking:
+          oneOf:
+            - $ref: "#/components/schemas/Booking"
+            - type: "null"
+        recentRequests:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceRequest"
+        savedAddress: { type: string }
+        trustStats:
+          type: object
+          required: [verifiedProfessionals, averageRating, guarantee]
+          properties:
+            verifiedProfessionals: { type: string }
+            averageRating: { type: string }
+            guarantee: { type: string }
 
