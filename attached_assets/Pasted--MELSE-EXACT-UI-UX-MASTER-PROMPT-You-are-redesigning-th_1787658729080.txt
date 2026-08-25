@@ -1,0 +1,1865 @@
+# MELSE — EXACT UI/UX MASTER PROMPT
+
+You are redesigning the entire UI/UX of **Melse**.
+
+IMPORTANT:
+
+The previous implementation became too complicated and lost the original product idea.
+
+**Do not build another generic marketplace, admin dashboard, or SaaS template.**
+
+Melse is a **service-on-demand application**.
+
+The customer's mental model is:
+
+> **“Something is broken. I need someone trustworthy to fix it.”**
+
+The UI must make that experience extremely fast.
+
+The application should feel like a combination of:
+
+* Uber-level simplicity
+* modern service marketplace
+* trusted local technician network
+* Ethiopian-first service platform
+
+But Melse must have its own identity.
+
+---
+
+# 1. THE MOST IMPORTANT UI RULE
+
+When a customer opens Melse, they should NOT see:
+
+* complicated dashboards
+* statistics
+* huge amounts of text
+* dozens of categories
+* complicated menus
+* unnecessary onboarding
+* giant forms
+* confusing filters
+
+They should immediately see:
+
+> **What do you need help with?**
+
+Then the services.
+
+The entire application should revolve around this.
+
+---
+
+# 2. CUSTOMER APP NAVIGATION
+
+Use a simple bottom navigation with exactly:
+
+### Home
+
+### My Jobs
+
+### Messages
+
+### Profile
+
+Do NOT add 6–8 navigation tabs.
+
+The emergency/request-service action should be available from Home.
+
+---
+
+# 3. CUSTOMER — HOME PAGE
+
+This is the most important screen in the entire application.
+
+## TOP AREA
+
+At the top:
+
+**Good morning, [Name]**
+
+Under it:
+
+> What do you need help with?
+
+Then a large search field:
+
+**🔍 Search for a service**
+
+Example placeholder:
+
+> “Plumber, electrician, fridge repair…”
+
+Do NOT make the search field the dominant element over the service buttons.
+
+---
+
+# 4. EMERGENCY SERVICE
+
+Immediately below the search area:
+
+A prominent but controlled emergency section:
+
+### Need help now?
+
+> Get a verified technician as soon as possible.
+
+Button:
+
+### **Get Help Now**
+
+This opens the emergency-service flow.
+
+Do not make the entire homepage look like an emergency screen.
+
+Emergency service should be visually noticeable but not overwhelming.
+
+---
+
+# 5. MAIN SERVICES
+
+Heading:
+
+## What can we help with?
+
+Display the five launch categories in a clean grid.
+
+### 🔧 Appliance Repair
+
+### ⚡ Electrician
+
+### 🚰 Plumbing
+
+### ❄️ AC & Refrigeration
+
+### 🧹 Cleaning
+
+Use attractive icons/illustrations.
+
+Each category should be a simple tappable card.
+
+Do NOT display 20 categories on the first screen.
+
+---
+
+# 6. MORE SERVICES
+
+Under the five main services:
+
+### See all services →
+
+When tapped, open the full service directory.
+
+The full directory can contain:
+
+* Moving
+* Painting
+* Carpentry
+* Welding
+* Solar
+* Generator
+* CCTV
+* Internet & Networking
+* Pest Control
+* Beauty
+* Other
+
+The home screen stays simple.
+
+---
+
+# 7. ACTIVE JOB CARD
+
+If the customer currently has an active booking, it should appear prominently on Home.
+
+Example:
+
+### Your technician is on the way
+
+**Dawit M.**
+
+⚡ Electrician
+
+⭐ 4.9
+
+**Arriving in ~18 min**
+
+[Track technician]
+
+The active job should take priority over promotional content.
+
+If there is no active job, don't show an empty placeholder.
+
+---
+
+# 8. RECENT SERVICES
+
+Below the main service section:
+
+### Recent services
+
+Example:
+
+**Refrigerator Repair**
+Dawit M. · Aug 21
+ETB 650
+
+**Plumbing**
+Abel K. · Aug 17
+ETB 500
+
+Allow tapping a previous service to see its details.
+
+Also provide:
+
+### Book again
+
+for suitable previous services.
+
+---
+
+# 9. TRUST SECTION
+
+Near the bottom of Home, have a compact trust section.
+
+Example:
+
+### Why Melse?
+
+✓ Verified professionals
+✓ Clear price estimates
+✓ Secure payments
+✓ Service guarantee
+
+Do not make this a giant marketing section.
+
+The app should demonstrate trust through the UI instead of constantly explaining it.
+
+---
+
+# 10. CUSTOMER — SERVICE DETAIL PAGE
+
+When the user taps:
+
+**Plumbing**
+
+Open a clean service page.
+
+Header:
+
+### Plumbing
+
+> Get help with leaks, blocked drains, faucets, toilets and more.
+
+Then:
+
+## What do you need help with?
+
+Show selectable problems:
+
+* Leaking pipe
+* Blocked drain
+* Broken faucet
+* Toilet problem
+* Installation
+* Other
+
+These should be large, easy-to-tap options.
+
+---
+
+# 11. CUSTOMER — DESCRIBE PROBLEM PAGE
+
+After choosing a problem:
+
+### Tell us what's wrong
+
+Large text field:
+
+> Describe the problem...
+
+Then:
+
+### Add photos
+
+[ + Add photo ]
+
+Allow multiple photos.
+
+Optional:
+
+### Add more details
+
+Do NOT create a 15-field form.
+
+Only collect information necessary to solve the job.
+
+Button at bottom:
+
+### Continue
+
+---
+
+# 12. CUSTOMER — LOCATION PAGE
+
+Title:
+
+### Where do you need help?
+
+Show:
+
+**📍 Current location**
+
+Then:
+
+**Saved addresses**
+
+Examples:
+
+Home
+Bole
+Office
+Megenagna
+
+And:
+
+### Enter address manually
+
+The map should be useful but should NOT consume the entire screen.
+
+Primary button:
+
+### Confirm location
+
+---
+
+# 13. CUSTOMER — SERVICE ESTIMATE PAGE
+
+Now show the user what they can expect.
+
+Large section:
+
+### Estimated price
+
+# ETB 400–700
+
+Under it:
+
+> Final price may change if additional work or materials are required.
+
+Then:
+
+### Estimated arrival
+
+**25–35 min**
+
+Then:
+
+### What's included?
+
+✓ Technician visit
+✓ Diagnosis
+✓ Standard service
+
+Then:
+
+### Continue
+
+Do NOT hide pricing until after the booking whenever an estimate can reasonably be provided.
+
+Price transparency is one of Melse's core trust mechanisms. The original concept specifically uses an estimated range such as ETB 400–700.
+
+---
+
+# 14. CUSTOMER — TECHNICIAN SELECTION
+
+This screen is extremely important.
+
+Title:
+
+### Choose your technician
+
+Subtitle:
+
+> Verified professionals available near you.
+
+Show technicians as clean horizontal/vertical cards.
+
+Example:
+
+---
+
+### Dawit M.
+
+🔵 Melse Verified
+
+⭐ 4.9 · 126 jobs
+
+📍 2.4 km away
+
+**Arrives in 25–35 min**
+
+**ETB 400–700**
+
+[Choose]
+
+---
+
+### Abel K.
+
+🔵 Melse Verified
+
+⭐ 4.8 · 94 jobs
+
+📍 3.1 km away
+
+**Arrives in 30–40 min**
+
+**ETB 450–700**
+
+[Choose]
+
+---
+
+Do NOT show irrelevant information.
+
+The customer cares about:
+
+1. Trust
+2. Rating
+3. Availability
+4. Arrival time
+5. Price
+6. Experience
+
+---
+
+# 15. TECHNICIAN PROFILE
+
+When a customer taps a technician:
+
+Show:
+
+Large profile photo
+
+### Dawit M.
+
+🔵 Melse Verified
+
+⭐ 4.9
+
+### 126 jobs completed
+
+### 96% customer satisfaction
+
+### 3 years experience
+
+Services:
+
+* Plumbing
+* Appliance installation
+
+Then:
+
+### Customer reviews
+
+Show 2–3 reviews.
+
+Then:
+
+### Service estimate
+
+ETB 400–700
+
+### Arrival
+
+25–35 min
+
+Primary button:
+
+# Book Dawit
+
+Do NOT turn this into a social-media profile.
+
+---
+
+# 16. BOOKING CONFIRMATION
+
+Before booking, show a simple summary:
+
+### Confirm your booking
+
+**Service**
+
+Plumbing — Leaking pipe
+
+**Technician**
+
+Dawit M.
+
+**Location**
+
+Bole, Addis Ababa
+
+**Estimated price**
+
+ETB 400–700
+
+**Estimated arrival**
+
+25–35 min
+
+Then a large primary button:
+
+# Confirm booking
+
+Small text:
+
+> You won't be charged until the service/payment step defined for this booking.
+
+The exact payment behavior should follow the configured payment flow.
+
+---
+
+# 17. SEARCHING FOR TECHNICIAN
+
+After confirmation:
+
+Show a dedicated status screen.
+
+Large visual:
+
+**Finding your technician...**
+
+Text:
+
+> We're looking for a verified professional near you.
+
+Show subtle loading animation.
+
+Do NOT make the user stare at a blank spinner.
+
+If matching takes longer:
+
+> Still looking...
+
+Then provide:
+
+**Contact support**
+
+and cancellation options when appropriate.
+
+---
+
+# 18. TECHNICIAN ASSIGNED
+
+Once assigned:
+
+# Your technician is on the way
+
+Show:
+
+### Dawit M.
+
+🔵 Melse Verified
+
+⭐ 4.9
+
+### Arriving in 25 min
+
+Map occupies the main portion of the screen.
+
+Technician marker.
+
+Customer location.
+
+Bottom sheet:
+
+**Dawit M.**
+
+Plumber
+
+[Call]
+
+[Message]
+
+Then:
+
+### Booking details
+
+Plumbing
+Leaking pipe
+ETB 400–700
+
+---
+
+# 19. LIVE JOB TRACKING
+
+The tracking screen should feel like a real service-tracking experience.
+
+Top:
+
+### Technician is on the way
+
+Map.
+
+Bottom:
+
+Technician information.
+
+Status timeline:
+
+✓ Booking confirmed
+
+✓ Technician accepted
+
+● On the way
+
+○ Arrived
+
+○ Working
+
+○ Completed
+
+Do not use huge amounts of text.
+
+The status should be visually obvious.
+
+---
+
+# 20. TECHNICIAN ARRIVED
+
+When the technician reaches the location:
+
+Show:
+
+# Your technician has arrived
+
+Dawit M.
+
+🔵 Melse Verified
+
+Then:
+
+### Please confirm you have met your technician.
+
+Button:
+
+**Start service**
+
+This prevents accidental job-state transitions.
+
+---
+
+# 21. SERVICE IN PROGRESS
+
+Show:
+
+# Service in progress
+
+Service:
+
+Leaking pipe
+
+Technician:
+
+Dawit M.
+
+Status:
+
+### Working
+
+Allow:
+
+**Message technician**
+
+**Contact support**
+
+Do not overwhelm the customer with unnecessary information while work is happening.
+
+---
+
+# 22. JOB COMPLETED
+
+Technician marks the job completed.
+
+Customer sees:
+
+# Service completed
+
+### What was done
+
+Fix leaking pipe
+
+### Service
+
+ETB 500
+
+### Materials
+
+ETB 100
+
+### Total
+
+# ETB 600
+
+Then:
+
+# Confirm completion
+
+The customer can report a problem instead.
+
+Buttons:
+
+### Confirm & Pay
+
+### Report a Problem
+
+---
+
+# 23. PAYMENT PAGE
+
+Keep it extremely simple.
+
+### Payment
+
+Service:
+
+Plumbing
+
+Service:
+
+ETB 500
+
+Materials:
+
+ETB 100
+
+Total:
+
+# ETB 600
+
+Payment methods should be displayed as available provider options.
+
+Example architecture:
+
+* Telebirr
+* Bank/payment provider
+* Other supported methods
+
+Do NOT hard-code unavailable providers.
+
+Primary:
+
+### Pay ETB 600
+
+---
+
+# 24. RATING PAGE
+
+After payment:
+
+# How was your service?
+
+Show technician:
+
+Dawit M.
+
+Large star selector:
+
+☆ ☆ ☆ ☆ ☆
+
+Then:
+
+### What went well?
+
+Optional tags:
+
+* Professional
+* On time
+* Good work
+* Friendly
+* Fair price
+
+Optional:
+
+### Add a comment
+
+Button:
+
+# Submit rating
+
+Do not force the user to write a review.
+
+---
+
+# 25. GUARANTEE PAGE
+
+After completion, show:
+
+### Melse Service Guarantee
+
+✓ 7-day service guarantee
+
+> If the same issue returns within the guarantee period, you can request follow-up service.
+
+Show:
+
+**Guarantee expires: Aug 31**
+
+Button:
+
+### View guarantee
+
+This should make Melse feel safer than simply calling a random technician.
+
+---
+
+# 26. MY JOBS PAGE
+
+Bottom navigation:
+
+### My Jobs
+
+Top tabs:
+
+**Active**
+
+**Past**
+
+Active:
+
+Show current booking.
+
+Past:
+
+Show clean booking cards.
+
+Example:
+
+### Refrigerator Repair
+
+Dawit M.
+
+Aug 21
+
+ETB 650
+
+✓ Completed
+
+---
+
+# 27. JOB DETAILS PAGE
+
+When a past job is opened:
+
+### Refrigerator Repair
+
+Status:
+
+✓ Completed
+
+Technician:
+
+Dawit M.
+
+Date:
+
+Aug 21, 2026
+
+Price:
+
+ETB 650
+
+Then:
+
+### Service details
+
+Problem description
+
+Photos
+
+Work performed
+
+Materials
+
+Payment
+
+Rating
+
+Guarantee
+
+Then:
+
+### Book again
+
+This page is essentially the customer's digital maintenance history.
+
+---
+
+# 28. MESSAGES PAGE
+
+Keep messaging simple.
+
+Show conversations:
+
+### Dawit M.
+
+Plumbing · Today
+
+### Melse Support
+
+Booking #1042
+
+Do NOT create a giant social messaging application.
+
+Messaging exists primarily for:
+
+* Customer ↔ Technician
+* Customer ↔ Melse Support
+
+---
+
+# 29. CHAT SCREEN
+
+Header:
+
+Dawit M.
+
+🔵 Verified
+
+Messages.
+
+Allow:
+
+* Text
+* Photo
+* Location
+
+Quick actions:
+
+**I'm here**
+
+**Where are you?**
+
+**Call**
+
+Do not add unnecessary social features.
+
+---
+
+# 30. PROFILE PAGE
+
+Simple.
+
+Profile photo.
+
+Name.
+
+Phone.
+
+Email.
+
+Then:
+
+### Account
+
+Personal information
+
+Saved addresses
+
+Payment methods
+
+Notifications
+
+Language
+
+Privacy
+
+Security
+
+Support
+
+Terms
+
+Logout
+
+Do NOT put analytics on the customer's profile.
+
+---
+
+# 31. CUSTOMER SUPPORT
+
+Make support easy to find.
+
+Support page:
+
+# How can we help?
+
+Options:
+
+### Booking problem
+
+### Payment problem
+
+### Technician problem
+
+### Report a service
+
+### Refund
+
+### Other
+
+Then:
+
+### Contact Melse Support
+
+Support should be accessible from active jobs.
+
+---
+
+# 32. TECHNICIAN APP
+
+The technician experience should be completely different from the customer experience.
+
+Technicians are working.
+
+Do not give them the same UI.
+
+Bottom navigation:
+
+### Jobs
+
+### Earnings
+
+### Messages
+
+### Profile
+
+---
+
+# 33. TECHNICIAN HOME/JOBS
+
+Top:
+
+### Good morning, Dawit
+
+Status toggle:
+
+# 🟢 Available
+
+or
+
+# ⚪ Offline
+
+When available, show incoming jobs.
+
+---
+
+# 34. INCOMING JOB
+
+Large card:
+
+### New job
+
+🚰 Plumbing
+
+Leaking pipe
+
+📍 Bole
+
+2.3 km away
+
+Estimated:
+
+ETB 400–700
+
+Customer rating:
+
+⭐ 4.8
+
+Buttons:
+
+# Accept
+
+# Decline
+
+The Accept button must be visually dominant.
+
+---
+
+# 35. TECHNICIAN ACTIVE JOB
+
+After accepting:
+
+### Current job
+
+Customer:
+
+[Name]
+
+Service:
+
+Plumbing
+
+Location:
+
+Bole
+
+Estimated earnings:
+
+ETB 340–595
+
+Actions:
+
+# Navigate
+
+# Call
+
+# Message
+
+Then:
+
+### Arrived
+
+After arriving:
+
+### Start job
+
+After completing:
+
+### Complete job
+
+---
+
+# 36. TECHNICIAN COMPLETION
+
+Technician must enter:
+
+### Work completed
+
+Text description.
+
+### Materials used
+
+Optional.
+
+### Final price
+
+Price breakdown.
+
+### Add completion photos
+
+Before/after photos.
+
+Then:
+
+# Complete job
+
+This creates the service record.
+
+---
+
+# 37. TECHNICIAN EARNINGS PAGE
+
+Keep it simple.
+
+### This week
+
+# ETB 4,850
+
+Jobs:
+
+18
+
+Completed:
+
+17
+
+Rating:
+
+⭐ 4.9
+
+Then:
+
+### Recent earnings
+
+Job
+
+Amount
+
+Date
+
+Status
+
+Do not build an unnecessarily complicated financial dashboard.
+
+---
+
+# 38. TECHNICIAN PROFILE
+
+Show:
+
+Photo
+
+Name
+
+🔵 Melse Verified
+
+⭐ 4.9
+
+Jobs completed
+
+Experience
+
+Skills
+
+Service categories
+
+Service area
+
+Verification status
+
+Then:
+
+### Verification documents
+
+Show status, not sensitive document details unnecessarily.
+
+---
+
+# 39. TECHNICIAN REGISTRATION
+
+Registration should be multi-step.
+
+### Step 1
+
+Basic information
+
+### Step 2
+
+Services & skills
+
+### Step 3
+
+Experience
+
+### Step 4
+
+Identity verification
+
+### Step 5
+
+Certificates/references
+
+### Step 6
+
+Review
+
+Then:
+
+# Application submitted
+
+> Melse is reviewing your information.
+
+Status:
+
+### Under review
+
+Do NOT immediately show them as verified.
+
+---
+
+# 40. ADMIN APPLICATION
+
+The admin interface is the only place where a dashboard-heavy UI is appropriate.
+
+Admin navigation:
+
+### Overview
+
+### Jobs
+
+### Technicians
+
+### Customers
+
+### Services
+
+### Payments
+
+### Guarantees
+
+### Businesses
+
+### Reports
+
+### Settings
+
+---
+
+# 41. ADMIN OVERVIEW
+
+Top metrics:
+
+### Active jobs
+
+### Today's jobs
+
+### Revenue
+
+### Pending verification
+
+### Open complaints
+
+Then:
+
+## Live Operations
+
+Show active jobs.
+
+Each row:
+
+Customer
+
+Service
+
+Technician
+
+Status
+
+Location
+
+Time
+
+Action
+
+---
+
+# 42. ADMIN JOBS
+
+Table on desktop.
+
+Mobile-friendly cards on mobile.
+
+Filters:
+
+* Status
+* Service
+* Technician
+* Date
+* Location
+
+Admin can:
+
+* Open job
+* Assign technician
+* Reassign
+* Cancel
+* View timeline
+* View payment
+* View complaint
+
+---
+
+# 43. ADMIN TECHNICIANS
+
+Show:
+
+Photo
+
+Name
+
+Verification
+
+Rating
+
+Jobs
+
+Service categories
+
+Status
+
+Actions
+
+Filters:
+
+* Pending
+* Verified
+* Rejected
+* Suspended
+
+---
+
+# 44. TECHNICIAN VERIFICATION
+
+This page must make verification easy.
+
+Show:
+
+### Dawit M.
+
+Status:
+
+Pending verification
+
+Sections:
+
+Identity
+
+Experience
+
+Skills
+
+Certificates
+
+References
+
+Previous work
+
+Admin actions:
+
+# Approve
+
+# Reject
+
+# Request more information
+
+Do not make the admin dig through multiple screens to make a verification decision.
+
+---
+
+# 45. ADMIN SERVICES
+
+Admin can:
+
+* Create service
+* Edit service
+* Disable service
+* Set category
+* Set price range
+* Set emergency fee
+* Configure guarantee
+* Configure availability
+
+Use forms, but keep them clean.
+
+---
+
+# 46. ADMIN PAYMENTS
+
+Show:
+
+Transaction
+
+Customer
+
+Technician
+
+Job
+
+Amount
+
+Melse commission
+
+Technician payout
+
+Payment status
+
+Date
+
+Do not expose sensitive payment information unnecessarily.
+
+---
+
+# 47. ADMIN COMPLAINTS
+
+Show:
+
+### Open complaints
+
+Each complaint:
+
+Customer
+
+Technician
+
+Job
+
+Issue
+
+Date
+
+Priority
+
+Status
+
+Admin can:
+
+* Contact customer
+* Contact technician
+* Review evidence
+* Refund
+* Reassign
+* Approve guarantee claim
+* Close dispute
+
+---
+
+# 48. BUSINESS APP
+
+Business accounts should have their own navigation.
+
+### Overview
+
+### Requests
+
+### Assets
+
+### Maintenance
+
+### Invoices
+
+### Team
+
+### Profile
+
+The business home should show:
+
+### Open requests
+
+### Upcoming maintenance
+
+### Recent spending
+
+### Assets requiring attention
+
+Do not mix business UI with consumer UI.
+
+---
+
+# 49. VISUAL DESIGN
+
+The visual identity should communicate:
+
+**Trust + speed + professionalism + local accessibility**
+
+Use:
+
+* Clean typography
+* Strong hierarchy
+* Large touch targets
+* Moderate rounded corners
+* Subtle shadows
+* High-quality icons
+* Plenty of whitespace
+* Clear status indicators
+
+Avoid:
+
+* Neon colors
+* Excessive gradients
+* Glassmorphism everywhere
+* Huge animations
+* Gaming-style UI
+* Excessive decorative illustrations
+* Generic AI-generated dashboard aesthetics
+
+---
+
+# 50. COLOR SYSTEM
+
+Create a professional brand color system.
+
+Use one strong primary brand color.
+
+Use supporting colors for:
+
+* Success
+* Warning
+* Error
+* Information
+* Neutral
+
+Do NOT use a rainbow of colors.
+
+Service categories may use subtle visual differentiation, but they should still feel like one product.
+
+---
+
+# 51. TYPOGRAPHY
+
+Typography must be:
+
+* Highly readable
+* Modern
+* Clear
+* Strong hierarchy
+
+Use:
+
+### Large
+
+Page titles
+
+### Medium
+
+Section titles
+
+### Regular
+
+Descriptions
+
+### Small
+
+Metadata
+
+Do not use tiny text to fit more information.
+
+---
+
+# 52. BUTTON RULE
+
+Every screen should have one obvious primary action.
+
+Examples:
+
+Home:
+
+**Request service**
+
+Service:
+
+**Continue**
+
+Technician selection:
+
+**Choose**
+
+Booking:
+
+**Confirm booking**
+
+Payment:
+
+**Pay**
+
+Rating:
+
+**Submit rating**
+
+Do not make every button equally prominent.
+
+---
+
+# 53. CARD RULE
+
+Cards should contain meaningful information.
+
+Do NOT put every piece of content into a card.
+
+Cards should be used for:
+
+* Technicians
+* Jobs
+* Services
+* Payments
+* Notifications
+* Business assets
+
+Normal text should remain normal text.
+
+---
+
+# 54. EMPTY STATES
+
+Every list needs a good empty state.
+
+Example:
+
+My Jobs:
+
+### No active jobs
+
+> When you request a service, your active booking will appear here.
+
+Button:
+
+**Request a service**
+
+Do not show blank screens.
+
+---
+
+# 55. LOADING STATES
+
+Use skeleton loaders for major content.
+
+Do not make the entire application spin endlessly.
+
+For example, technician cards should load as skeleton cards.
+
+---
+
+# 56. ERROR STATES
+
+Example:
+
+### Something went wrong
+
+> We couldn't load your technicians.
+
+Button:
+
+**Try again**
+
+Do not expose raw technical errors.
+
+---
+
+# 57. RESPONSIVE BEHAVIOR
+
+Mobile:
+
+* Bottom navigation
+* Full-width actions
+* Large touch targets
+* Bottom sheets
+* Compact cards
+
+Desktop:
+
+* Sidebar where appropriate
+* Wider layouts
+* Tables for admin
+* Two-column details where useful
+
+Do NOT simply stretch the mobile UI onto desktop.
+
+---
+
+# 58. WHAT NOT TO BUILD
+
+DO NOT build:
+
+❌ Social media feed
+❌ Public technician marketplace directory
+❌ Complex customer dashboard
+❌ Excessive analytics
+❌ Cryptocurrency
+❌ Loyalty points in MVP
+❌ AI chatbot just for decoration
+❌ 50 categories on Home
+❌ Complex subscription system in MVP
+❌ Complicated multi-step forms
+❌ Excessive popups
+❌ Unnecessary animations
+❌ Generic SaaS dashboard for customers
+❌ Fake map tracking
+❌ Fake payment success
+❌ Fake verification
+
+---
+
+# 59. THE MOST IMPORTANT CUSTOMER FLOW
+
+The finished UI must make this journey extremely good:
+
+```text
+OPEN APP
+ ↓
+“What do you need help with?”
+ ↓
+Choose Plumbing
+ ↓
+Choose Leaking Pipe
+ ↓
+Describe / Photo
+ ↓
+Location
+ ↓
+ETB 400–700
+ ↓
+25–35 min
+ ↓
+Choose Verified Technician
+ ↓
+BOOK
+ ↓
+Track
+ ↓
+Technician Arrives
+ ↓
+Service
+ ↓
+Confirm
+ ↓
+Pay
+ ↓
+Rate
+ ↓
+Guarantee
+```
+
+If this flow feels complicated, the UI is wrong.
+
+---
+
+# 60. FINAL DESIGN TEST
+
+Before finishing, pretend you are a customer who has never seen Melse before.
+
+Give yourself this problem:
+
+> “My kitchen sink is leaking.”
+
+Open the app.
+
+Ask:
+
+1. Do I immediately know what Melse does?
+2. Can I find Plumbing immediately?
+3. Can I explain my problem easily?
+4. Can I provide my location?
+5. Can I understand the expected price?
+6. Can I see trustworthy technicians?
+7. Can I understand when someone will arrive?
+8. Can I book without confusion?
+9. Can I track the technician?
+10. Can I pay easily?
+11. Do I know that my service is guaranteed?
+12. Can I find the history later?
+
+If the answer to any is NO:
+
+**Fix the UI.**
+
+Do not add another feature.
+
+---
+
+# FINAL INSTRUCTION TO THE AI BUILDER
+
+The goal is NOT to make the application look impressive to a developer.
+
+The goal is to make a person with a broken pipe, broken refrigerator, electrical problem, or dirty home think:
+
+# “Oh. I can get someone through this.”
+
+And then:
+
+# “I want to use this.”
+
+Build the UI around that reaction.
+
+**Simple for customers.**
+
+**Fast for technicians.**
+
+**Powerful for administrators.**
+
+**Scalable underneath.**
+
+Do not allow technical architecture to dictate the user experience.
+
+The user experience comes first.
