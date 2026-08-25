@@ -1,9 +1,11 @@
-import { useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import taxonomyCsv from '../../../melse_service_taxonomy_1100_plus.csv?raw';
 import {
   ArrowRight,
   BadgeCheck,
   Bell,
   BriefcaseBusiness,
+  Car,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -22,6 +24,9 @@ import {
   Settings2,
   ShieldCheck,
   Star,
+  Sun,
+  Moon,
+  Languages,
   ToolCase,
   UserRound,
   Wrench,
@@ -55,6 +60,41 @@ import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
 
+type Language = 'en' | 'am';
+type Theme = 'light' | 'dark';
+const languageContext = createContext<{ language: Language; setLanguage: (language: Language) => void }>({ language: 'en', setLanguage: () => undefined });
+const themeContext = createContext<{ theme: Theme; setTheme: (theme: Theme) => void }>({ theme: 'light', setTheme: () => undefined });
+
+const translations: Record<string, string> = {
+  'Home': 'መነሻ', 'My Jobs': 'ስራዎቼ', 'Messages': 'መልዕክቶች', 'Profile': 'መገለጫ',
+  'Good morning, Aster': 'እንደምን አደርክ፣ አስቴር', 'What do you need': 'ምን እርዳታ ያስፈልግዎታል', 'help with?': 'ምን እንርዳዎ?',
+  'Search for a service': 'አገልግሎት ይፈልጉ', 'Need help now?': 'አሁን እርዳታ ይፈልጋሉ?', 'Get Help Now': 'አሁን እርዳታ ያግኙ',
+  'What can we help with?': 'በምን እንርዳዎ?', 'See all services': 'ሁሉንም አገልግሎቶች ይመልከቱ', 'Recent services': 'የቅርብ ጊዜ አገልግሎቶች',
+  'Why Melse': 'ለምን መልሴ?', 'Verified people': 'የተረጋገጡ ባለሙያዎች', 'Clear ETB estimate': 'ግልጽ የETB ግምት',
+  'A desk that follows up': 'የሚከታተል የእርዳታ ቡድን', 'Customer desk': 'የደንበኛ ጠረጴዛ', 'Addis Ababa': 'አዲስ አበባ',
+  'Service directory': 'የአገልግሎት ዝርዝር', 'Everything we fix': 'የምንጠግናቸው ነገሮች ሁሉ', 'Browse the broader Melse network for home, repair, and essential services.': 'የቤት፣ የጥገና እና አስፈላጊ አገልግሎቶችን ይመልከቱ።',
+  'Request help': 'እርዳታ ይጠይቁ', 'of': 'ከ', 'Home service': 'የቤት አገልግሎት', 'Back': 'ተመለስ', 'held for this request': 'ለዚህ ጥያቄ ተይዟል', 'characters': 'ቁምፊዎች', 'What is going on?': 'ምን ችግር ተፈጥሯል?', 'Give us the useful detail.': 'ጠቃሚ ዝርዝሩን ይንገሩን።', 'Where should we come?': 'የት እንምጣ?',
+  'Choose the closest match. You can explain more next.': 'በጣም የሚቀርበውን ችግር ይምረጡ። በሚቀጥለው ደረጃ ተጨማሪ ማብራሪያ መስጠት ይችላሉ።', 'What should the professional know?': 'ባለሙያው ምን ማወቅ አለበት?', 'A few words help us send the right person first time.': 'ጥቂት ቃላት ትክክለኛውን ባለሙያ እንድንልክ ይረዱናል።', 'For example: water is dripping under the kitchen sink...': 'ለምሳሌ፦ ከኩሽናው ማጠቢያ ስር ውሃ እየፈሰሰ ነው...', 'Add a photo (optional)': 'ፎቶ ያክሉ (አማራጭ)', 'Photo selected': 'ፎቶ ተመርጧል',
+  'Your Addis Ababa address': 'የአዲስ አበባ አድራሻዎ', 'A house, building, or area is enough to start.': 'ለመጀመር የቤት፣ የህንፃ ወይም የአካባቢ ስም በቂ ነው።', 'When do you need it?': 'መቼ ያስፈልግዎታል?', 'Today': 'ዛሬ', 'This week': 'በዚህ ሳምንት', 'Just planning': 'እያቀዱ ብቻ', 'Before booking, you’ll see an estimate of': 'ቦታ ከማስያዝዎ በፊት የዋጋ ግምት ያያሉ።', 'and an arrival window.': 'እና የመድረሻ ጊዜ ያያሉ።', 'Continue': 'ቀጥል', 'Sending request...': 'ጥያቄው እየተላከ ነው...', 'See estimate and people': 'ግምቱንና ባለሙያዎቹን ይመልከቱ', 'Tell us what needs attention': 'ምን እንደሚስተካከል ይንገሩን', 'Repair or replacement': 'ጥገና ወይም መተካት', 'Installation': 'ተከላ', 'Something else': 'ሌላ ነገር',
+  'Fridge is not cooling': 'ማቀዝቀዣው አያቀዘቅዝም', 'Washing machine problem': 'የልብስ ማጠቢያ ችግር', 'Cooker or oven issue': 'የማብሰያ ወይም የምድጃ ችግር', 'Power outage at home': 'በቤት ውስጥ የኤሌክትሪክ መቋረጥ', 'Faulty socket or switch': 'የተበላሸ ሶኬት ወይም ማብሪያ', 'Lights flickering': 'መብራቶች ይንጠባጠባሉ', 'Install a light or appliance': 'መብራት ወይም የቤት ዕቃ መትከል',
+  'Leaking pipe or tap': 'የሚያፈስ ቧንቧ ወይም ቆጣሪ', 'Blocked sink or drain': 'የተዘጋ ማጠቢያ ወይም መውረጃ', 'No water or low pressure': 'ውሃ የለም ወይም ግፊቱ ዝቅተኛ ነው', 'Install or replace fixture': 'ዕቃ መትከል ወይም መተካት', 'AC is not cooling': 'ኤሲው አያቀዘቅዝም', 'Refrigerator is warm': 'ማቀዝቀዣው ሞቃት ነው', 'Strange noise or leak': 'እንግዳ ድምፅ ወይም ፍሳሽ', 'Service or installation': 'ጥገና ወይም ተከላ', 'Deep clean my home': 'ቤቴን በጥልቀት ማጽዳት', 'Move-in or move-out clean': 'ሲገቡ ወይም ሲወጡ ጽዳት', 'Kitchen or bathroom clean': 'የኩሽና ወይም የመታጠቢያ ቤት ጽዳት', 'Regular home cleaning': 'መደበኛ የቤት ጽዳት',
+  'Launch services': 'ዋና አገልግሎቶች', 'Your activity': 'የእርስዎ እንቅስቃሴ', 'Verified local help in Addis': 'በአዲስ አበባ የተረጋገጠ የአካባቢ እርዳታ',
+  'See all': 'ሁሉንም ይመልከቱ', 'A safer way to call for help.': 'እርዳታ ለመጠየቅ የተሻለ እና ደህንነቱ የተጠበቀ መንገድ።',
+  'Find help': 'እርዳታ ያግኙ', 'Get a verified technician as soon as possible.': 'የተረጋገጠ ባለሙያ በተቻለ ፍጥነት ያግኙ።',
+  'Appliance Repair': 'የቤት ዕቃ ጥገና', 'Electrician': 'ኤሌክትሪሺያን', 'Plumbing': 'የውሃ ቧንቧ',
+  'AC & Refrigeration': 'ኤሲ እና ማቀዝቀዣ', 'Cleaning': 'ጽዳት', 'Fridges, cookers, washers': 'ማቀዝቀዣ፣ ማብሰያ እና የልብስ ማጠቢያ',
+  'Power, lights, sockets': 'ኤሌክትሪክ፣ መብራት እና ሶኬት', 'Leaks, drains, fixtures': 'ፍሳሽ፣ የውሃ መውረጃ እና ዕቃዎች',
+  'Cooling that works again': 'እንደገና የሚሰራ ማቀዝቀዣ', 'A home reset, done well': 'ቤትዎን በጥራት ማጽዳት',
+  'Your service history is clear': 'የአገልግሎት ታሪክዎ ባዶ ነው', 'When you request help, your recent service will appear here.': 'እርዳታ ሲጠይቁ የቅርብ ጊዜ አገልግሎትዎ እዚህ ይታያል።', 'Start a request': 'ጥያቄ ይጀምሩ',
+  'We could not load this just now.': 'አሁን መጫን አልቻልንም።', 'Try again': 'እንደገና ይሞክሩ', 'No jobs yet': 'እስካሁን ስራ የለም',
+  'Start with a service and we’ll keep the details here.': 'አገልግሎት ይምረጡ እና ዝርዝሩን እዚህ እናስቀምጣለን።', 'Request not found': 'ጥያቄው አልተገኘም',
+  'This service request may no longer be available.': 'ይህ የአገልግሎት ጥያቄ ከእንግዲህ ላይገኝ ይችላል።', 'Back to jobs': 'ወደ ስራዎች ይመለሱ',
+  'No messages yet': 'እስካሁን መልዕክት የለም', 'Contact support': 'ድጋፍን ያግኙ', 'No one is available right now': 'አሁን ማንም አይገኝም',
+};
+const useLanguage = () => useContext(languageContext);
+const useTheme = () => useContext(themeContext);
+const localized = (value: string, language: Language) => language === 'am' ? translations[value] ?? value : value;
+
 const money = (value: number) => `ETB ${new Intl.NumberFormat('en-US').format(value)}`;
 const dateLabel = (value?: string) => value
   ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(value))
@@ -62,6 +102,108 @@ const dateLabel = (value?: string) => value
 const titleCase = (value?: string) => value?.toLowerCase().replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()) || 'Pending';
 
 type LaunchService = { slug: string; name: string; description: string; icon: LucideIcon; color: string };
+
+type TaxonomyRow = {
+  serviceId: string;
+  categoryEn: string;
+  categoryAm: string;
+  serviceEn: string;
+  serviceAm: string;
+  searchBehavior: string;
+  uiVisibility: string;
+};
+
+const normalizeSearchText = (value: string) => value
+  .toLowerCase()
+  .trim()
+  .replace(/[_/\-]+/g, ' ')
+  .replace(/[^a-z0-9\u1200-\u137f\s]/g, ' ')
+  .replace(/\s+/g, ' ');
+
+const catalogIconByCategory: Record<string, LucideIcon> = {
+  Plumbing: Droplets,
+  Electrical: Zap,
+  'Appliance Repair': Refrigerator,
+  'AC & Refrigeration': Settings2,
+  Cleaning: Sparkles,
+  'Construction & Masonry': Wrench,
+  'Painting & Finishing': Sparkles,
+  'Carpentry & Furniture': ToolCase,
+  'Metalwork & Welding': ToolCase,
+  'Glass & Aluminum': Wrench,
+  Roofing: ShieldCheck,
+  'Solar & Renewable Energy': Zap,
+  'Generators & Power Backup': Settings2,
+  'Security & Smart Home': ShieldCheck,
+  'Internet & Networking': MessageCircle,
+  'Computers & IT': ToolCase,
+  'Mobile Phones & Electronics': Wrench,
+  'Vehicle — Cars': Car,
+  'Vehicle — Motorcycles': Car,
+  'Vehicle — Commercial & Heavy': Car,
+};
+
+const taxonomyRows: TaxonomyRow[] = taxonomyCsv
+  .split(/\r?\n/)
+  .slice(1)
+  .filter(Boolean)
+  .map((line) => {
+    const values = line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/);
+    const [serviceId = '', categoryEn = '', categoryAm = '', serviceEn = '', serviceAm = '', searchBehavior = '', uiVisibility = ''] = values;
+    return { serviceId, categoryEn, categoryAm, serviceEn, serviceAm, searchBehavior, uiVisibility };
+  })
+  .filter((row) => row.serviceEn && row.categoryEn);
+
+const serviceNameAmharic: Record<string, string> = {
+  'Fix leaking faucet': 'የሚያፈስ ቧንቧ ጥገና',
+  'Fix leaking pipe': 'የሚያፈስ የውሃ ቧንቧ ጥገና',
+  'Fix burst pipe': 'የተበረጠ የውሃ ቧንቧ ጥገና',
+  'Unclog sink': 'የተዘጋ ማጠቢያ መክፈት',
+  'Unclog toilet': 'የተዘጋ መጸዳጃ ቤት መክፈት',
+  'Unclog shower drain': 'የተዘጋ የሻወር መውረጃ መክፈት',
+  'Repair toilet': 'መጸዳጃ ቤት መጠገን',
+  'Install toilet': 'መጸዳጃ ቤት መትከል',
+  'Replace toilet seat': 'የመጸዳጃ ቤት መቀመጫ መተካት',
+  'Repair water heater': 'የውሃ ማሞቂያ መጠገን',
+  'Install water heater': 'የውሃ ማሞቂያ መትከል',
+  'Repair water pump': 'የውሃ ፓምፕ መጠገን',
+  'Install water pump': 'የውሃ ፓምፕ መትከል',
+  'Repair pressure pump': 'የግፊት ፓምፕ መጠገን',
+  'Install pressure pump': 'የግፊት ፓምፕ መትከል',
+  'Repair water tank': 'የውሃ ገንዳ መጠገን',
+  'Install water tank': 'የውሃ ገንዳ መትከል',
+  'Clean water tank': 'የውሃ ገንዳ ማጽዳት',
+  'Install kitchen sink': 'የኩሽና ማጠቢያ መትከል',
+  'Repair kitchen sink': 'የኩሽና ማጠቢያ መጠገን',
+  'Install bathroom sink': 'የመታጠቢያ ቤት ማጠቢያ መትከል',
+  'Repair bathroom sink': 'የመታጠቢያ ቤት ማጠቢያ መጠገን',
+  'Install shower': 'ሻወር መትከል',
+};
+
+const taxonomyServiceCatalog = taxonomyRows.map((row, index) => {
+  const baseName = row.serviceEn.trim();
+  const slug = baseName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || `service-${index + 1}`;
+
+  const amharicName = row.serviceAm?.trim() || serviceNameAmharic[baseName] || baseName;
+
+  return {
+    slug,
+    name: baseName,
+    category: row.categoryEn,
+    categoryAm: row.categoryAm,
+    nameAm: amharicName,
+    description: `${row.categoryEn} • ${baseName}`,
+    icon: catalogIconByCategory[row.categoryEn] ?? Wrench,
+  };
+});
+
+const catalogLabel = (service: { name: string; nameAm: string }, language: Language) => language === 'am'
+  ? service.nameAm
+  : service.name;
+
 const launchServices: LaunchService[] = [
   { slug: 'appliance-repair', name: 'Appliance Repair', description: 'Fridges, cookers, washers', icon: Refrigerator, color: 'bg-[#f2e9db]' },
   { slug: 'electrician', name: 'Electrician', description: 'Power, lights, sockets', icon: Zap, color: 'bg-[#f8e4c9]' },
@@ -69,6 +211,15 @@ const launchServices: LaunchService[] = [
   { slug: 'ac-refrigeration', name: 'AC & Refrigeration', description: 'Cooling that works again', icon: Settings2, color: 'bg-[#e5e5ef]' },
   { slug: 'cleaning', name: 'Cleaning', description: 'A home reset, done well', icon: Sparkles, color: 'bg-[#f0e5e0]' },
 ];
+
+const fullServices: Array<{ slug: string; name: string; nameAm: string; categoryAm: string; description: string; icon: LucideIcon }> = taxonomyServiceCatalog.map((service) => ({
+  slug: service.slug,
+  name: service.name,
+  nameAm: service.nameAm,
+  categoryAm: service.categoryAm,
+  description: service.category,
+  icon: service.icon,
+}));
 
 const issueSets: Record<string, string[]> = {
   'appliance-repair': ['Fridge is not cooling', 'Washing machine problem', 'Cooker or oven issue', 'Something else'],
@@ -89,16 +240,18 @@ function LoadingBlock({ lines = 3 }: { lines?: number }) {
 }
 
 function ErrorBlock({ label = 'We could not load this just now.', retry }: { label?: string; retry?: () => void }) {
+  const { language } = useLanguage();
   return <div className="rounded-xl border border-destructive/25 bg-destructive/5 p-5 text-sm text-destructive" data-testid="error-state">
-    <div className="flex items-center gap-3"><CircleAlert size={18} /><span>{label}</span></div>
-    {retry && <button data-testid="button-retry" onClick={retry} className="mt-3 font-semibold underline underline-offset-4">Try again</button>}
+    <div className="flex items-center gap-3"><CircleAlert size={18} /><span>{localized(label, language)}</span></div>
+    {retry && <button data-testid="button-retry" onClick={retry} className="mt-3 font-semibold underline underline-offset-4">{localized('Try again', language)}</button>}
   </div>;
 }
 
 function EmptyBlock({ title, detail, action }: { title: string; detail: string; action?: ReactNode }) {
+  const { language } = useLanguage();
   return <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center" data-testid="empty-state">
     <div className="mx-auto mb-3 grid size-11 place-items-center rounded-full bg-secondary text-primary"><PackageCheck size={20} /></div>
-    <h3 className="font-semibold">{title}</h3><p className="mx-auto mt-1 max-w-sm text-sm leading-relaxed text-muted-foreground">{detail}</p>{action}
+    <h3 className="font-semibold">{localized(title, language)}</h3><p className="mx-auto mt-1 max-w-sm text-sm leading-relaxed text-muted-foreground">{localized(detail, language)}</p>{action}
   </div>;
 }
 
@@ -119,66 +272,109 @@ const customerNav = [
 function Shell({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
-  const isWorkArea = location.startsWith('/technician') || location.startsWith('/admin');
+  const { language, setLanguage } = useLanguage();
+  const { theme, setTheme } = useTheme();
   const activeNav = customerNav.find((item) => item.href === location || (item.href !== '/' && location.startsWith(item.href)));
   return <div className="noise min-h-[100dvh] bg-background text-foreground">
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-[232px] flex-col border-r border-sidebar-border bg-sidebar px-4 py-6 text-sidebar-foreground md:flex">
-      <Mark />
-      <div className="mt-12 px-2"><p className="mono-font text-[10px] uppercase tracking-[.17em] text-sidebar-foreground/45">{isWorkArea ? 'Work space' : 'Customer desk'}</p>
-        {isWorkArea ? <nav className="mt-4 space-y-1"><Link href="/technician" data-testid="link-nav-technician" className={`flex items-center gap-3 rounded-lg px-3 py-3 text-sm ${location.startsWith('/technician') ? 'bg-sidebar-accent text-sidebar-foreground' : 'text-sidebar-foreground/65 hover:bg-sidebar-accent'}`}><ToolCase size={17} />Technician jobs</Link><Link href="/admin" data-testid="link-nav-admin" className={`flex items-center gap-3 rounded-lg px-3 py-3 text-sm ${location.startsWith('/admin') ? 'bg-sidebar-accent text-sidebar-foreground' : 'text-sidebar-foreground/65 hover:bg-sidebar-accent'}`}><LayoutDashboard size={17} />Operations</Link><Link href="/" data-testid="link-nav-customer" className="mt-6 flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-sidebar-foreground/65 hover:bg-sidebar-accent"><HomeIcon size={17} />Customer view</Link></nav> :
-          <nav className="mt-4 space-y-1">{customerNav.map(({ href, label, icon: NavIcon }) => <Link key={href} href={href} data-testid={`link-nav-${label.toLowerCase().replaceAll(' ', '-')}`} className={`flex items-center gap-3 rounded-lg px-3 py-3 text-sm transition-colors ${activeNav?.href === href ? 'bg-sidebar-accent text-sidebar-foreground' : 'text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-foreground'}`}><NavIcon size={17} strokeWidth={1.8} />{label}</Link>)}</nav>}
-      </div>
-      {!isWorkArea && <div className="mt-auto rounded-xl border border-sidebar-border bg-sidebar-accent/60 p-4"><div className="flex items-center gap-2 text-xs font-semibold"><ShieldCheck size={15} className="text-sidebar-primary" /> A desk you can trust</div><p className="mt-2 text-xs leading-relaxed text-sidebar-foreground/55">Local help, clear estimates, and someone to follow up.</p><div className="mt-4 flex items-center gap-2 text-xs text-sidebar-foreground/55"><MapPin size={13} /> Addis Ababa</div></div>}
-      <div className={`${isWorkArea ? 'mt-auto' : 'mt-5'} flex items-center gap-3 border-t border-sidebar-border pt-4`}><div className="grid size-8 place-items-center rounded-full bg-sidebar-primary text-[11px] font-bold text-sidebar-primary-foreground">AM</div><div><p className="text-sm font-semibold">Aster M.</p><p className="text-xs text-sidebar-foreground/50">Addis Ababa</p></div><MoreHorizontal size={16} className="ml-auto text-sidebar-foreground/45" /></div>
-    </aside>
-    <div className="md:pl-[232px]">
+    <div className="mx-auto max-w-[1240px]">
       <header className="sticky top-0 z-20 flex h-[68px] items-center justify-between border-b border-border/75 bg-background/95 px-4 backdrop-blur-sm md:px-9">
-        <div className="md:hidden"><Mark /></div><div className="hidden items-center gap-2 md:flex"><MapPin size={14} className="text-primary" /><span className="text-sm font-medium">Addis Ababa</span><span className="text-xs text-muted-foreground">· local desk</span></div>
-        <div className="flex items-center gap-2"><button onClick={() => window.alert('You are all caught up.')} data-testid="button-notifications" className="grid size-9 place-items-center rounded-full border border-border bg-card text-muted-foreground transition hover:border-primary hover:text-primary"><Bell size={17} /></button><button data-testid="button-mobile-menu" onClick={() => setMenuOpen(!menuOpen)} className="grid size-9 place-items-center rounded-full border border-border bg-card md:hidden">{menuOpen ? <X size={17} /> : <Menu size={17} />}</button></div>
+        <div className="flex items-center gap-3"><Mark /></div>
+        <div className="hidden items-center gap-2 md:flex"><MapPin size={14} className="text-primary" /><span className="text-sm font-medium">Addis Ababa</span><span className="text-xs text-muted-foreground">· local desk</span></div>
+        <div className="flex items-center gap-2"><button onClick={() => setLanguage(language === 'en' ? 'am' : 'en')} aria-label="Change language" data-testid="button-language" className="inline-flex h-9 items-center gap-1.5 rounded-full border border-border bg-card px-3 text-xs font-bold text-muted-foreground transition hover:border-primary hover:text-primary"><Languages size={15} /> {language === 'en' ? 'አማ' : 'EN'}</button><button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} aria-label="Change color theme" data-testid="button-theme" className="grid size-9 place-items-center rounded-full border border-border bg-card text-muted-foreground transition hover:border-primary hover:text-primary">{theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}</button><button onClick={() => window.alert('You are all caught up.')} data-testid="button-notifications" className="grid size-9 place-items-center rounded-full border border-border bg-card text-muted-foreground transition hover:border-primary hover:text-primary"><Bell size={17} /></button><button data-testid="button-mobile-menu" onClick={() => setMenuOpen(!menuOpen)} className="grid size-9 place-items-center rounded-full border border-border bg-card md:hidden">{menuOpen ? <X size={17} /> : <Menu size={17} />}</button></div>
       </header>
-      {menuOpen && <div className="absolute right-4 top-[60px] z-30 w-56 rounded-xl border border-border bg-card p-2 shadow-lg md:hidden">{customerNav.map(({ href, label, icon: NavIcon }) => <Link key={href} onClick={() => setMenuOpen(false)} href={href} data-testid={`link-mobile-${label.toLowerCase().replaceAll(' ', '-')}`} className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm hover:bg-secondary"><NavIcon size={16} />{label}</Link>)}</div>}
+      {menuOpen && <div className="absolute right-4 top-[60px] z-30 w-56 rounded-xl border border-border bg-card p-2 shadow-lg md:hidden">{customerNav.map(({ href, label, icon: NavIcon }) => <Link key={href} onClick={() => setMenuOpen(false)} href={href} data-testid={`link-mobile-${label.toLowerCase().replaceAll(' ', '-')}`} className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm hover:bg-secondary"><NavIcon size={16} />{localized(label, language)}</Link>)}</div>}
       <main className="page-in mx-auto max-w-[1240px] px-4 pb-28 pt-7 md:px-9 md:pb-10 md:pt-9">{children}</main>
     </div>
-    {!isWorkArea && <nav className="fixed inset-x-0 bottom-0 z-20 flex items-stretch border-t border-border bg-card/95 px-3 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 backdrop-blur-sm md:hidden">{customerNav.map(({ href, label, icon: NavIcon }) => <Link key={href} href={href} data-testid={`link-bottom-${label.toLowerCase().replaceAll(' ', '-')}`} className={`flex flex-1 flex-col items-center gap-1 rounded-lg py-1.5 text-[10px] font-semibold ${activeNav?.href === href ? 'text-primary' : 'text-muted-foreground'}`}><NavIcon size={19} strokeWidth={activeNav?.href === href ? 2.2 : 1.8} />{label}</Link>)}</nav>}
+    <nav className="fixed inset-x-0 bottom-0 z-20 flex items-stretch border-t border-border bg-card/95 px-3 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 backdrop-blur-sm md:hidden">{customerNav.map(({ href, label, icon: NavIcon }) => <Link key={href} href={href} data-testid={`link-bottom-${label.toLowerCase().replaceAll(' ', '-')}`} className={`flex flex-1 flex-col items-center gap-1 rounded-lg py-1.5 text-[10px] font-semibold ${activeNav?.href === href ? 'text-primary' : 'text-muted-foreground'}`}><NavIcon size={19} strokeWidth={activeNav?.href === href ? 2.2 : 1.8} />{localized(label, language)}</Link>)}</nav>
   </div>;
 }
 
 function ServiceCard({ service, actual }: { service: LaunchService; actual?: Service }) {
+  const { language } = useLanguage();
   const ServiceIcon = service.icon;
   return <Link href={`/request/${actual?.slug || service.slug}`} data-testid={`card-service-${service.slug}`} className="group flex min-h-[144px] flex-col justify-between border border-border bg-card p-4 transition hover:-translate-y-0.5 hover:border-primary hover:shadow-[4px_4px_0_hsl(var(--accent))]">
     <div className="flex items-start justify-between"><div className={`grid size-10 place-items-center ${service.color} text-primary`}><ServiceIcon size={20} strokeWidth={1.8} /></div><ArrowRight size={17} className="text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" /></div>
-    <div><h3 className="mt-4 text-sm font-bold">{service.name}</h3><p className="mt-1 text-xs text-muted-foreground">{service.description}</p></div>
+    <div><h3 className="mt-4 text-sm font-bold">{localized(service.name, language)}</h3><p className="mt-1 text-xs text-muted-foreground">{localized(service.description, language)}</p></div>
   </Link>;
 }
 
 function Home() {
+  const { language } = useLanguage();
   const services = useListServices();
   const summary = useGetDashboardSummary();
   const requests = useListServiceRequests();
-  const recent = summary.data?.recentRequests ?? requests.data ?? [];
-  const actualFor = (slug: string) => services.data?.find((item) => item.slug === slug || item.name.toLowerCase().replaceAll(' ', '-') === slug);
+  const serviceList = Array.isArray(services.data) ? services.data : [];
+  const requestList = Array.isArray(requests.data) ? requests.data : [];
+  const recent = summary.data?.recentRequests ?? requestList;
+  const actualFor = (slug: string) => serviceList.find((item) => item.slug === slug || item.name.toLowerCase().replaceAll(' ', '-') === slug);
   const [emergencyOpen, setEmergencyOpen] = useState(false);
+  const [searchValue, setSearchValue] = useState('');
+  const searchResults = useMemo(() => {
+    const query = normalizeSearchText(searchValue);
+    if (!query) return [];
+    return taxonomyServiceCatalog
+      .map((service) => {
+        const name = normalizeSearchText(service.name);
+        const category = normalizeSearchText(service.category);
+        const amharic = normalizeSearchText(service.categoryAm ?? '');
+        const haystack = `${name} ${category} ${amharic}`;
+        if (!haystack) return { service, score: Number.NEGATIVE_INFINITY };
+        const exact = haystack.includes(query) ? 100 : 0;
+        const startsWith = name.startsWith(query) || category.startsWith(query) ? 60 : 0;
+        const tokenMatch = query.split(' ').every((token) => haystack.includes(token)) ? 35 : 0;
+        const score = exact + startsWith + tokenMatch;
+        return { service, score };
+      })
+      .filter((entry) => entry.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 6)
+      .map((entry) => entry.service);
+  }, [searchValue]);
   return <div className="space-y-9">
     <section className="relative overflow-hidden bg-primary px-5 py-7 text-primary-foreground md:px-9 md:py-9">
       <div className="absolute -right-20 -top-28 size-72 rounded-full border-[38px] border-primary-foreground/[.06]" /><div className="absolute bottom-[-100px] right-40 size-48 rounded-full border-[24px] border-accent/20" />
-      <div className="relative max-w-2xl"><p className="rise-1 mono-font text-[10px] uppercase tracking-[.18em] text-accent">Good morning, Aster</p><h1 className="rise-2 mt-4 max-w-xl text-[2.7rem] font-bold leading-[.98] tracking-[-.045em] md:text-6xl">What do you need<br /><span className="display-font font-normal italic">help with?</span></h1><p className="rise-3 mt-4 max-w-md text-sm leading-relaxed text-primary-foreground/70">From a dripping tap to a cold fridge, tell us what is happening and we’ll get the right local person moving.</p>
-        <button onClick={() => document.getElementById('services')?.scrollIntoView({ behavior: 'smooth' })} data-testid="button-start-request" className="rise-3 mt-6 inline-flex min-h-12 items-center gap-2 bg-accent px-5 text-sm font-bold text-accent-foreground transition hover:-translate-y-0.5">Find help <ArrowRight size={17} /></button>
+      <div className="relative max-w-2xl"><p className="rise-1 mono-font text-[10px] uppercase tracking-[.18em] text-accent">{localized('Good morning, Aster', language)}</p><h1 className="rise-2 mt-4 max-w-xl text-[2.7rem] font-bold leading-[.98] tracking-[-.045em] md:text-6xl">{localized('What do you need', language)}<br /><span className="display-font font-normal italic">{localized('help with?', language)}</span></h1><p className="rise-3 mt-4 max-w-md text-sm leading-relaxed text-primary-foreground/70">{language === 'am' ? 'ከሚያንጠባጥብ ቧንቧ እስከ ቀዝቃዛ ማቀዝቀዣ፣ ችግሩን ይንገሩን እና ትክክለኛውን የአካባቢ ባለሙያ እናመጣለን።' : 'From a dripping tap to a cold fridge, tell us what is happening and we’ll get the right local person moving.'}</p>
+        <button onClick={() => document.getElementById('services')?.scrollIntoView({ behavior: 'smooth' })} data-testid="button-start-request" className="rise-3 mt-6 inline-flex min-h-12 items-center gap-2 bg-accent px-5 text-sm font-bold text-accent-foreground transition hover:-translate-y-0.5">{localized('Find help', language)} <ArrowRight size={17} /></button>
       </div>
     </section>
     <section className="flex flex-col gap-3 sm:flex-row sm:items-center">
-      <div className="relative flex-1"><Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" /><input data-testid="input-service-search" type="search" placeholder="Search a home problem" className="h-12 w-full border border-border bg-card pl-11 pr-4 text-sm outline-none placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-accent/30" /></div>
-      <button onClick={() => setEmergencyOpen(!emergencyOpen)} data-testid="button-emergency" className={`inline-flex min-h-12 items-center justify-center gap-2 border px-4 text-sm font-bold transition ${emergencyOpen ? 'border-destructive bg-destructive text-destructive-foreground' : 'border-destructive/35 bg-card text-destructive hover:bg-destructive/5'}`}><Zap size={17} /> Need help now?</button>
+      <div className="relative flex-1">
+        <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <input
+          data-testid="input-service-search"
+          type="search"
+          value={searchValue}
+          onChange={(event) => setSearchValue(event.target.value)}
+          placeholder={localized('Search for a service', language)}
+          className="h-12 w-full border border-border bg-card pl-11 pr-4 text-sm outline-none placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-accent/30"
+        />
+        {searchValue && searchResults.length > 0 && (
+          <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-20 rounded-xl border border-border bg-card p-2 shadow-lg">
+            {searchResults.map((service) => (
+              <Link key={service.slug} href={`/request/${service.slug}`} className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left hover:bg-secondary">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{catalogLabel(service, language)}</p>
+                  <p className="text-xs text-muted-foreground">{language === 'am' ? service.categoryAm : service.category}</p>
+                </div>
+                <ArrowRight size={15} className="text-primary" />
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+      <button onClick={() => setEmergencyOpen(!emergencyOpen)} data-testid="button-emergency" className={`inline-flex min-h-12 items-center justify-center gap-2 border px-4 text-sm font-bold transition ${emergencyOpen ? 'border-destructive bg-destructive text-destructive-foreground' : 'border-destructive/35 bg-card text-destructive hover:bg-destructive/5'}`}><Zap size={17} /> {localized('Need help now?', language)}</button>
     </section>
-    {emergencyOpen && <div className="flex flex-col gap-4 border border-destructive/25 bg-destructive/5 p-4 sm:flex-row sm:items-center sm:justify-between" data-testid="panel-emergency"><div><p className="text-sm font-bold text-destructive">For urgent home issues</p><p className="mt-1 text-xs text-muted-foreground">Choose a service below, then select “Today” so we can prioritize it. Melse does not replace emergency services.</p></div><button onClick={() => document.getElementById('services')?.scrollIntoView({ behavior: 'smooth' })} data-testid="button-emergency-choose" className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 bg-destructive px-4 text-xs font-bold text-destructive-foreground">Choose a service <ArrowRight size={15} /></button></div>}
+    {emergencyOpen && <div className="flex flex-col gap-4 border border-destructive/25 bg-destructive/5 p-4 sm:flex-row sm:items-center sm:justify-between" data-testid="panel-emergency"><div><p className="text-sm font-bold text-destructive">{localized('Need help now?', language)}</p><p className="mt-1 text-xs text-muted-foreground">{localized('Get a verified technician as soon as possible.', language)}</p></div><button onClick={() => document.getElementById('services')?.scrollIntoView({ behavior: 'smooth' })} data-testid="button-emergency-choose" className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 bg-destructive px-4 text-xs font-bold text-destructive-foreground">{localized('Get Help Now', language)} <ArrowRight size={15} /></button></div>}
     {summary.data?.activeBooking && <ActiveBookingCard booking={summary.data.activeBooking} />}
-    <section id="services" className="scroll-mt-24"><div className="mb-4 flex items-end justify-between"><div><p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">01 / Launch services</p><h2 className="mt-2 text-2xl font-bold tracking-tight md:text-3xl">Start with what’s wrong</h2></div><span className="hidden text-xs text-muted-foreground sm:block">Verified local help in Addis</span></div>
+    <section id="services" className="scroll-mt-24"><div className="mb-4 flex items-end justify-between"><div><p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">01 / {localized('Launch services', language)}</p><h2 className="mt-2 text-2xl font-bold tracking-tight md:text-3xl">{localized('What can we help with?', language)}</h2></div><span className="hidden text-xs text-muted-foreground sm:block">{localized('Verified local help in Addis', language)}</span></div>
       {services.isLoading ? <LoadingBlock lines={2} /> : services.isError ? <ErrorBlock retry={() => services.refetch()} /> : <div className="grid grid-cols-2 gap-2 md:grid-cols-5">{launchServices.map((service) => <ServiceCard key={service.slug} service={service} actual={actualFor(service.slug)} />)}</div>}
+      <div className="mt-4 flex justify-end"><Link href="/services" data-testid="link-see-all-services" className="inline-flex items-center gap-2 text-sm font-bold text-primary">{localized('See all services', language)} <ArrowRight size={15} /></Link></div>
     </section>
     <section className="grid gap-8 lg:grid-cols-[1.35fr_.65fr]">
-      <div><div className="mb-4 flex items-end justify-between"><div><p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">02 / Your activity</p><h2 className="mt-2 text-xl font-bold">Recent services</h2></div><Link href="/jobs" data-testid="link-see-all-jobs" className="text-xs font-bold text-primary">See all</Link></div>
-        {requests.isLoading && !recent.length ? <LoadingBlock lines={2} /> : requests.isError && !recent.length ? <ErrorBlock retry={() => requests.refetch()} /> : recent.length ? <div className="divide-y divide-border border border-border bg-card">{recent.slice(0, 4).map((request) => <Link href={`/job/${request.id}`} key={request.id} data-testid={`row-request-${request.id}`} className="flex items-center gap-3 p-4 transition hover:bg-secondary/40"><div className="grid size-9 shrink-0 place-items-center bg-secondary text-primary"><IconFor name={request.serviceSlug} size={17} /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{request.problem}</p><p className="mt-1 truncate text-xs text-muted-foreground">{request.address} · {dateLabel(request.createdAt)}</p></div><div className="hidden text-right sm:block"><p className="mono-font text-[11px]">{money(request.priceMin)}–{money(request.priceMax)}</p><p className="mt-1 text-[10px] text-muted-foreground">{request.arrival}</p></div><ChevronRight size={16} className="text-muted-foreground" /></Link>)}</div> : <EmptyBlock title="Your service history is clear" detail="When you request help, your recent service will appear here." action={<Link href="#services" data-testid="link-empty-start" className="mt-4 inline-flex text-sm font-bold text-primary">Start a request <ArrowRight size={15} className="ml-1" /></Link>} />}
+      <div><div className="mb-4 flex items-end justify-between"><div><p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">02 / {localized('Your activity', language)}</p><h2 className="mt-2 text-xl font-bold">{localized('Recent services', language)}</h2></div><Link href="/jobs" data-testid="link-see-all-jobs" className="text-xs font-bold text-primary">{localized('See all', language)}</Link></div>
+        {requests.isLoading && !recent.length ? <LoadingBlock lines={2} /> : requests.isError && !recent.length ? <ErrorBlock retry={() => requests.refetch()} /> : recent.length ? <div className="divide-y divide-border border border-border bg-card">{recent.slice(0, 4).map((request) => <Link href={`/job/${request.id}`} key={request.id} data-testid={`row-request-${request.id}`} className="flex items-center gap-3 p-4 transition hover:bg-secondary/40"><div className="grid size-9 shrink-0 place-items-center bg-secondary text-primary"><IconFor name={request.serviceSlug} size={17} /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{request.problem}</p><p className="mt-1 truncate text-xs text-muted-foreground">{request.address} · {dateLabel(request.createdAt)}</p></div><div className="hidden text-right sm:block"><p className="mono-font text-[11px]">{money(request.priceMin)}–{money(request.priceMax)}</p><p className="mt-1 text-[10px] text-muted-foreground">{request.arrival}</p></div><ChevronRight size={16} className="text-muted-foreground" /></Link>)}</div> : <EmptyBlock title={localized('Your service history is clear', language)} detail={localized('When you request help, your recent service will appear here.', language)} action={<Link href="#services" data-testid="link-empty-start" className="mt-4 inline-flex text-sm font-bold text-primary">{localized('Start a request', language)} <ArrowRight size={15} className="ml-1" /></Link>} />}
       </div>
-      <div className="border border-border bg-secondary/55 p-5"><div className="flex items-start justify-between"><div><p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">Why Melse</p><h2 className="mt-2 text-xl font-bold">A safer way to call for help.</h2></div><ShieldCheck size={24} className="text-primary" /></div><div className="mt-6 space-y-4"><TrustLine icon={BadgeCheck} title="Verified people" /><TrustLine icon={FileText} title="Clear ETB estimate" /><TrustLine icon={MessageCircle} title="A desk that follows up" /></div></div>
+      <div className="border border-border bg-secondary/55 p-5"><div className="flex items-start justify-between"><div><p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">{localized('Why Melse', language)}</p><h2 className="mt-2 text-xl font-bold">{localized('A safer way to call for help.', language)}</h2></div><ShieldCheck size={24} className="text-primary" /></div><div className="mt-6 space-y-4"><TrustLine icon={BadgeCheck} title={localized('Verified people', language)} /><TrustLine icon={FileText} title={localized('Clear ETB estimate', language)} /><TrustLine icon={MessageCircle} title={localized('A desk that follows up', language)} /></div></div>
     </section>
   </div>;
 }
@@ -193,10 +389,12 @@ function ActiveBookingCard({ booking }: { booking: Booking }) {
 
 function RequestFlow() {
   const { serviceSlug = '' } = useParams<{ serviceSlug: string }>();
+  const { language } = useLanguage();
   const services = useListServices();
   const create = useCreateServiceRequest();
   const [, setLocation] = useLocation();
   const normalizedServiceSlug = serviceSlug === 'electrical' ? 'electrician' : serviceSlug === 'plumbing' ? 'plumber' : serviceSlug;
+  const serviceList = Array.isArray(services.data) ? services.data : [];
   const [step, setStep] = useState(1);
   const [problem, setProblem] = useState('');
   const [description, setDescription] = useState('');
@@ -204,18 +402,19 @@ function RequestFlow() {
   const [urgency, setUrgency] = useState('Today');
   const [photoName, setPhotoName] = useState('');
   const service = launchServices.find((item) => item.slug === normalizedServiceSlug);
-  const actual = services.data?.find((item) => item.slug === normalizedServiceSlug);
+  const catalogService = taxonomyServiceCatalog.find((item) => item.slug === normalizedServiceSlug);
+  const actual = serviceList.find((item) => item.slug === normalizedServiceSlug);
   const issues = issueSets[normalizedServiceSlug] ?? ['Tell us what needs attention', 'Repair or replacement', 'Installation', 'Something else'];
   const canNext = step === 1 ? Boolean(problem) : step === 2 ? description.trim().length > 5 : Boolean(address.trim());
   const submit = () => create.mutate({ data: { serviceSlug: actual?.slug || normalizedServiceSlug, problem, description, address, urgency } }, { onSuccess: (request) => setLocation(`/technicians/${request.id}`) });
   return <div className="mx-auto max-w-3xl">
-    <Link href="/" data-testid="link-back-home" className="mb-7 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"><ChevronLeft size={16} /> Back</Link>
-    <div className="mb-7"><div className="flex gap-2">{[1, 2, 3].map((number) => <span key={number} className={`h-1.5 flex-1 ${number <= step ? 'bg-primary' : 'bg-border'}`} />)}</div><div className="mt-4 flex items-center justify-between"><p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">Request help · 0{step} of 03</p><span className="text-xs font-semibold text-muted-foreground">{service?.name || 'Home service'}</span></div><h1 className="mt-3 text-4xl font-bold leading-[.98] tracking-[-.04em] md:text-5xl">{step === 1 ? 'What is going on?' : step === 2 ? 'Give us the useful detail.' : 'Where should we come?'}</h1></div>
+    <Link href="/" data-testid="link-back-home" className="mb-7 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"><ChevronLeft size={16} /> {localized('Back', language)}</Link>
+    <div className="mb-7"><div className="flex gap-2">{[1, 2, 3].map((number) => <span key={number} className={`h-1.5 flex-1 ${number <= step ? 'bg-primary' : 'bg-border'}`} />)}</div><div className="mt-4 flex items-center justify-between"><p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">{localized('Request help', language)} · 0{step} {localized('of', language)} 03</p><span className="text-xs font-semibold text-muted-foreground">{service ? localized(service.name, language) : catalogService ? catalogLabel(catalogService, language) : localized('Home service', language)}</span></div><h1 className="mt-3 text-4xl font-bold leading-[.98] tracking-[-.04em] md:text-5xl">{localized(step === 1 ? 'What is going on?' : step === 2 ? 'Give us the useful detail.' : 'Where should we come?', language)}</h1></div>
     {services.isLoading ? <LoadingBlock lines={3} /> : services.isError ? <ErrorBlock retry={() => services.refetch()} /> : <div className="border border-border bg-card p-4 md:p-7">
-      {step === 1 && <div><p className="mb-4 text-sm text-muted-foreground">Choose the closest match. You can explain more next.</p><div className="grid gap-2 sm:grid-cols-2">{issues.map((issue) => <button key={issue} onClick={() => setProblem(issue)} data-testid={`button-problem-${issue.toLowerCase().replaceAll(' ', '-')}`} className={`flex min-h-14 items-center justify-between border p-4 text-left text-sm font-semibold transition ${problem === issue ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:border-primary/60 hover:bg-secondary'}`}><span>{issue}</span>{problem === issue ? <Check size={17} /> : <PlusMark />}</button>)}</div></div>}
-      {step === 2 && <div><label htmlFor="request-description" className="text-sm font-bold">What should the professional know?</label><p className="mt-1 text-sm text-muted-foreground">A few words help us send the right person first time.</p><textarea id="request-description" data-testid="input-request-description" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="For example: water is dripping under the kitchen sink..." className="mt-5 min-h-40 w-full resize-none border border-input bg-background p-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-accent/30" /><div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><label className="inline-flex min-h-11 w-fit cursor-pointer items-center gap-2 border border-border px-3 text-xs font-semibold text-muted-foreground transition hover:border-primary hover:text-primary"><ImagePlus size={16} /> {photoName ? 'Photo selected' : 'Add a photo (optional)'}<input type="file" accept="image/*" className="sr-only" data-testid="input-request-photo" onChange={(event) => setPhotoName(event.target.files?.[0]?.name || '')} /></label><span className="text-xs text-muted-foreground">{photoName ? `${photoName} · held for this request` : `${description.length} characters`}</span></div></div>}
-      {step === 3 && <div className="space-y-6"><div><label htmlFor="request-address" className="text-sm font-bold">Your Addis Ababa address</label><p className="mt-1 text-sm text-muted-foreground">A house, building, or area is enough to start.</p><div className="relative mt-3"><MapPin size={17} className="absolute left-4 top-4 text-primary" /><input id="request-address" data-testid="input-request-address" value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Bole, Kazanchis, CMC..." className="h-14 w-full border border-input bg-background pl-11 pr-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-accent/30" /></div></div><div><p className="text-sm font-bold">When do you need it?</p><div className="mt-3 grid gap-2 sm:grid-cols-3">{['Today', 'This week', 'Just planning'].map((item) => <button key={item} onClick={() => setUrgency(item)} data-testid={`button-urgency-${item.toLowerCase().replaceAll(' ', '-')}`} className={`min-h-16 border px-3 py-3 text-left text-sm transition ${urgency === item ? 'border-primary bg-secondary font-bold text-primary' : 'border-border hover:border-primary/50'}`}><Clock3 size={16} className="mb-2" />{item}</button>)}</div></div><div className="flex gap-3 bg-secondary/60 p-4 text-sm text-muted-foreground"><ShieldCheck className="shrink-0 text-primary" size={18} /><p>Before booking, you’ll see an estimate of <strong className="text-foreground">ETB 400–700</strong> and an arrival window.</p></div></div>}
-      <div className="mt-7 flex items-center justify-between border-t border-border pt-5"><button data-testid="button-request-back" onClick={() => setStep(Math.max(1, step - 1))} className={`text-sm font-bold ${step === 1 ? 'invisible' : ''}`}>Back</button>{step < 3 ? <button disabled={!canNext} data-testid="button-request-next" onClick={() => setStep(step + 1)} className="inline-flex min-h-11 items-center gap-2 bg-primary px-5 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-35">Continue <ChevronRight size={17} /></button> : <button disabled={!canNext || create.isPending} data-testid="button-submit-request" onClick={submit} className="inline-flex min-h-11 items-center gap-2 bg-primary px-5 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-35">{create.isPending ? 'Sending request...' : 'See estimate and people'} <ArrowRight size={17} /></button>}</div>
+      {step === 1 && <div><p className="mb-4 text-sm text-muted-foreground">{localized('Choose the closest match. You can explain more next.', language)}</p><div className="grid gap-2 sm:grid-cols-2">{issues.map((issue) => <button key={issue} onClick={() => setProblem(issue)} data-testid={`button-problem-${issue.toLowerCase().replaceAll(' ', '-')}`} className={`flex min-h-14 items-center justify-between border p-4 text-left text-sm font-semibold transition ${problem === issue ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:border-primary/60 hover:bg-secondary'}`}><span>{localized(issue, language)}</span>{problem === issue ? <Check size={17} /> : <PlusMark />}</button>)}</div></div>}
+      {step === 2 && <div><label htmlFor="request-description" className="text-sm font-bold">{localized('What should the professional know?', language)}</label><p className="mt-1 text-sm text-muted-foreground">{localized('A few words help us send the right person first time.', language)}</p><textarea id="request-description" data-testid="input-request-description" value={description} onChange={(event) => setDescription(event.target.value)} placeholder={localized('For example: water is dripping under the kitchen sink...', language)} className="mt-5 min-h-40 w-full resize-none border border-input bg-background p-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-accent/30" /><div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><label className="inline-flex min-h-11 w-fit cursor-pointer items-center gap-2 border border-border px-3 text-xs font-semibold text-muted-foreground transition hover:border-primary hover:text-primary"><ImagePlus size={16} /> {localized(photoName ? 'Photo selected' : 'Add a photo (optional)', language)}<input type="file" accept="image/*" className="sr-only" data-testid="input-request-photo" onChange={(event) => setPhotoName(event.target.files?.[0]?.name || '')} /></label><span className="text-xs text-muted-foreground">{photoName ? `${photoName} · ${localized('held for this request', language)}` : `${description.length} ${localized('characters', language)}`}</span></div></div>}
+      {step === 3 && <div className="space-y-6"><div><label htmlFor="request-address" className="text-sm font-bold">{localized('Your Addis Ababa address', language)}</label><p className="mt-1 text-sm text-muted-foreground">{localized('A house, building, or area is enough to start.', language)}</p><div className="relative mt-3"><MapPin size={17} className="absolute left-4 top-4 text-primary" /><input id="request-address" data-testid="input-request-address" value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Bole, Kazanchis, CMC..." className="h-14 w-full border border-input bg-background pl-11 pr-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-accent/30" /></div></div><div><p className="text-sm font-bold">{localized('When do you need it?', language)}</p><div className="mt-3 grid gap-2 sm:grid-cols-3">{['Today', 'This week', 'Just planning'].map((item) => <button key={item} onClick={() => setUrgency(item)} data-testid={`button-urgency-${item.toLowerCase().replaceAll(' ', '-')}`} className={`min-h-16 border px-3 py-3 text-left text-sm transition ${urgency === item ? 'border-primary bg-secondary font-bold text-primary' : 'border-border hover:border-primary/50'}`}><Clock3 size={16} className="mb-2" />{localized(item, language)}</button>)}</div></div><div className="flex gap-3 bg-secondary/60 p-4 text-sm text-muted-foreground"><ShieldCheck className="shrink-0 text-primary" size={18} /><p>{localized('Before booking, you’ll see an estimate of', language)} <strong className="text-foreground">ETB 400–700</strong> {localized('and an arrival window.', language)}</p></div></div>}
+      <div className="mt-7 flex items-center justify-between border-t border-border pt-5"><button data-testid="button-request-back" onClick={() => setStep(Math.max(1, step - 1))} className={`text-sm font-bold ${step === 1 ? 'invisible' : ''}`}>{localized('Back', language)}</button>{step < 3 ? <button disabled={!canNext} data-testid="button-request-next" onClick={() => setStep(step + 1)} className="inline-flex min-h-11 items-center gap-2 bg-primary px-5 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-35">{localized('Continue', language)} <ChevronRight size={17} /></button> : <button disabled={!canNext || create.isPending} data-testid="button-submit-request" onClick={submit} className="inline-flex min-h-11 items-center gap-2 bg-primary px-5 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-35">{localized(create.isPending ? 'Sending request...' : 'See estimate and people', language)} <ArrowRight size={17} /></button>}</div>
       {create.isError && <p className="mt-4 text-right text-sm text-destructive" data-testid="text-request-error">We could not send that. Please try again.</p>}
     </div>}
   </div>;
@@ -231,9 +430,10 @@ function TechnicianPicker() {
   const requests = useListServiceRequests();
   const create = useCreateBooking();
   const [, setLocation] = useLocation();
-  const request = requests.data?.find((item) => item.id === requestId);
+  const requestList = Array.isArray(requests.data) ? requests.data : [];
+  const request = requestList.find((item) => item.id === requestId);
   const [selected, setSelected] = useState('');
-  const available = technicians.data?.filter((tech) => tech.available) ?? [];
+  const available = Array.isArray(technicians.data) ? technicians.data.filter((tech) => tech.available) : [];
   const book = () => create.mutate({ data: { requestId, technicianId: selected } }, { onSuccess: (booking) => setLocation(`/booking/${booking.id}`) });
   return <div className="mx-auto max-w-4xl">
     <Link href="/" data-testid="link-technicians-back" className="mb-7 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"><ChevronLeft size={16} /> Home</Link>
@@ -299,6 +499,11 @@ function Profile() {
   return <PageIntro eyebrow="Customer desk" title="Profile" detail="Keep your contact details and service preferences close at hand."><div className="max-w-xl border border-border bg-card"><div className="flex items-center gap-4 border-b border-border p-5"><div className="grid size-14 place-items-center rounded-full bg-primary text-sm font-bold text-accent">AM</div><div><p className="font-bold">Aster Mekonnen</p><p className="mt-1 text-sm text-muted-foreground">Customer in Addis Ababa</p></div></div><div className="divide-y divide-border"><DetailLine label="Phone" value="+251 9•• ••• •••" /><DetailLine label="Saved area" value="Addis Ababa" /><Link href="/support" data-testid="link-profile-support" className="flex items-center justify-between p-4 text-sm font-bold hover:bg-secondary/40">Support and guarantees <ArrowRight size={16} className="text-primary" /></Link></div></div></PageIntro>;
 }
 
+function ServiceDirectory() {
+  const { language } = useLanguage();
+  return <PageIntro eyebrow="Service directory" title="Everything we fix" detail="Browse the broader Melse network for home, repair, and essential services."><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{fullServices.map((service) => <Link key={service.slug} href={`/request/${service.slug}`} data-testid={`card-directory-${service.slug}`} className="group flex items-center justify-between border border-border bg-card p-4 transition hover:-translate-y-0.5 hover:border-primary hover:shadow-[4px_4px_0_hsl(var(--accent))]"><div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-xl bg-secondary text-primary"><service.icon size={18} /></span><div><p className="text-sm font-bold">{catalogLabel(service, language)}</p><p className="mt-1 text-xs text-muted-foreground">{language === 'am' ? service.categoryAm : service.description}</p></div></div><ArrowRight size={16} className="text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" /></Link>)}</div></PageIntro>;
+}
+
 function Support() {
   return <PageIntro eyebrow="Melse support" title="How can we help?" detail="A real person from the desk can help with a request, estimate, or guarantee question."><div className="grid max-w-2xl gap-3 md:grid-cols-2"><SupportItem icon={MessageCircle} title="Message the desk" detail="Ask about an active request or booking." /><SupportItem icon={ShieldCheck} title="Guarantee and payment" detail="Your estimate is a range. Confirm the final amount before work begins." /><SupportItem icon={CircleAlert} title="Urgent home issue" detail="For immediate danger, contact local emergency services first." /><SupportItem icon={FileText} title="Request a review" detail="We can help document an issue after a visit." /></div><Link href="/" data-testid="link-support-home" className="mt-6 inline-flex min-h-11 items-center gap-2 border border-primary px-5 text-sm font-bold text-primary">Back to home <ArrowRight size={16} /></Link></PageIntro>;
 }
@@ -308,7 +513,8 @@ function SupportItem({ icon: SupportIcon, title, detail }: { icon: LucideIcon; t
 }
 
 function PageIntro({ eyebrow, title, detail, action, children }: { eyebrow: string; title: string; detail: string; action?: ReactNode; children: ReactNode }) {
-  return <div className="mx-auto max-w-4xl"><div className="mb-8 flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-end sm:justify-between"><div><p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">{eyebrow}</p><h1 className="mt-3 text-4xl font-bold tracking-[-.04em] md:text-5xl">{title}</h1><p className="mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">{detail}</p></div>{action}</div>{children}</div>;
+  const { language } = useLanguage();
+  return <div className="mx-auto max-w-4xl"><div className="mb-8 flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-end sm:justify-between"><div><p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">{localized(eyebrow, language)}</p><h1 className="mt-3 text-4xl font-bold tracking-[-.04em] md:text-5xl">{localized(title, language)}</h1><p className="mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">{localized(detail, language)}</p></div>{action}</div>{children}</div>;
 }
 
 function TechnicianDashboard() {
@@ -331,11 +537,23 @@ function AdminDashboard() {
 
 function Router() {
   const [location] = useLocation();
-  return <ErrorBoundary resetKey={location}><Shell><Switch><Route path="/" component={Home} /><Route path="/jobs" component={Jobs} /><Route path="/my-jobs" component={Jobs} /><Route path="/messages" component={Messages} /><Route path="/profile" component={Profile} /><Route path="/support" component={Support} /><Route path="/request/:serviceSlug" component={RequestFlow} /><Route path="/technicians/:requestId" component={TechnicianPicker} /><Route path="/job/:id" component={RequestDetails} /><Route path="/jobs/:id" component={RequestDetails} /><Route path="/booking/:id" component={BookingPage} /><Route path="/technician" component={TechnicianDashboard} /><Route path="/admin" component={AdminDashboard} /><Route component={NotFound} /></Switch></Shell></ErrorBoundary>;
+return <ErrorBoundary resetKey={location}><Shell><Switch><Route path="/" component={Home} /><Route path="/jobs" component={Jobs} /><Route path="/my-jobs" component={Jobs} /><Route path="/messages" component={Messages} /><Route path="/profile" component={Profile} /><Route path="/support" component={Support} /><Route path="/services" component={ServiceDirectory} /><Route path="/request/:serviceSlug" component={RequestFlow} /><Route path="/technicians/:requestId" component={TechnicianPicker} /><Route path="/job/:id" component={RequestDetails} /><Route path="/jobs/:id" component={RequestDetails} /><Route path="/booking/:id" component={BookingPage} /><Route path="/technician" component={TechnicianDashboard} /><Route path="/admin" component={AdminDashboard} /><Route component={NotFound} /></Switch></Shell></ErrorBoundary>;
 }
 
 function App() {
-  return <QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Router /></WouterRouter><Toaster /></TooltipProvider></QueryClientProvider>;
+  const [language, setLanguage] = useState<Language>(() => (localStorage.getItem('melse-language') as Language) || 'en');
+  const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('melse-theme') as Theme) || 'light');
+
+  useEffect(() => {
+    localStorage.setItem('melse-language', language);
+  }, [language]);
+
+  useEffect(() => {
+    localStorage.setItem('melse-theme', theme);
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+  }, [theme]);
+
+  return <languageContext.Provider value={{ language, setLanguage }}><themeContext.Provider value={{ theme, setTheme }}><QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Router /></WouterRouter><Toaster /></TooltipProvider></QueryClientProvider></themeContext.Provider></languageContext.Provider>;
 }
 
 export default App;
