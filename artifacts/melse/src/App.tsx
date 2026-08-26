@@ -229,6 +229,58 @@ const issueSets: Record<string, string[]> = {
   cleaning: ['Deep clean my home', 'Move-in or move-out clean', 'Kitchen or bathroom clean', 'Regular home cleaning'],
 };
 
+type ServiceExperience = {
+  prompt: string;
+  detailPrompt: string;
+  placeholder: string;
+  helper: string;
+  icon: LucideIcon;
+  options: string[];
+};
+
+const serviceExperiences: Record<string, ServiceExperience> = {
+  'appliance-repair': {
+    prompt: 'Which appliance needs attention?',
+    detailPrompt: 'Help us understand the appliance problem.',
+    placeholder: 'Brand, model, and what happens when you switch it on...',
+    helper: 'A brand or model number helps us send the right tools.',
+    icon: Refrigerator,
+    options: ['Fridge is not cooling', 'Washing machine problem', 'Cooker or oven issue', 'Something else'],
+  },
+  electrician: {
+    prompt: 'What is happening with the power?',
+    detailPrompt: 'Tell us what is safe to inspect.',
+    placeholder: 'Which room, circuit, or appliance is affected?',
+    helper: 'If you smell burning or see sparks, switch off power if safe and say so here.',
+    icon: Zap,
+    options: ['Power outage at home', 'Faulty socket or switch', 'Lights flickering', 'Install a light or appliance'],
+  },
+  plumber: {
+    prompt: 'Where is the water problem?',
+    detailPrompt: 'Show us where the water is coming from.',
+    placeholder: 'Room, fixture, leak location, and how fast it is dripping...',
+    helper: 'Mention whether you can shut off the main water supply.',
+    icon: Droplets,
+    options: ['Leaking pipe or tap', 'Blocked sink or drain', 'No water or low pressure', 'Install or replace fixture'],
+  },
+  'ac-refrigeration': {
+    prompt: 'What needs cooling again?',
+    detailPrompt: 'Give us the cooling system clues.',
+    placeholder: 'Room size, temperature, unusual noise, or recent service...',
+    helper: 'The unit type and last service date help us prepare for the visit.',
+    icon: Settings2,
+    options: ['AC is not cooling', 'Refrigerator is warm', 'Strange noise or leak', 'Service or installation'],
+  },
+  cleaning: {
+    prompt: 'What kind of clean do you need?',
+    detailPrompt: 'Shape the visit around your home.',
+    placeholder: 'Rooms, approximate size, surfaces, and anything needing extra care...',
+    helper: 'Tell us about pets, fragile items, or rooms that need special attention.',
+    icon: Sparkles,
+    options: ['Deep clean my home', 'Move-in or move-out clean', 'Kitchen or bathroom clean', 'Regular home cleaning'],
+  },
+};
+
 function IconFor({ name, size = 20 }: { name?: string; size?: number }) {
   const source = name?.toLowerCase() || '';
   const Icon = source.includes('elect') ? Zap : source.includes('plumb') || source.includes('water') ? Droplets : source.includes('clean') ? Sparkles : source.includes('appliance') ? Refrigerator : Wrench;
@@ -305,7 +357,7 @@ function Home() {
   const requests = useListServiceRequests();
   const serviceList = Array.isArray(services.data) ? services.data : [];
   const requestList = Array.isArray(requests.data) ? requests.data : [];
-  const recent = summary.data?.recentRequests ?? requestList;
+  const recent = Array.isArray(summary.data?.recentRequests) ? summary.data.recentRequests : requestList;
   const actualFor = (slug: string) => serviceList.find((item) => item.slug === slug || item.name.toLowerCase().replaceAll(' ', '-') === slug);
   const [emergencyOpen, setEmergencyOpen] = useState(false);
   const [searchValue, setSearchValue] = useState('');
@@ -404,15 +456,22 @@ function RequestFlow() {
   const service = launchServices.find((item) => item.slug === normalizedServiceSlug);
   const catalogService = taxonomyServiceCatalog.find((item) => item.slug === normalizedServiceSlug);
   const actual = serviceList.find((item) => item.slug === normalizedServiceSlug);
-  const issues = issueSets[normalizedServiceSlug] ?? ['Tell us what needs attention', 'Repair or replacement', 'Installation', 'Something else'];
+  const experience = serviceExperiences[normalizedServiceSlug] ?? {
+    prompt: 'Tell us what needs attention',
+    detailPrompt: 'Give us the useful detail.',
+    placeholder: 'Describe what is happening...',
+    helper: 'A few words help us send the right person first time.',
+    icon: Wrench,
+    options: issueSets[normalizedServiceSlug] ?? ['Repair or replacement', 'Installation', 'Something else'],
+  };
   const canNext = step === 1 ? Boolean(problem) : step === 2 ? description.trim().length > 5 : Boolean(address.trim());
   const submit = () => create.mutate({ data: { serviceSlug: actual?.slug || normalizedServiceSlug, problem, description, address, urgency } }, { onSuccess: (request) => setLocation(`/technicians/${request.id}`) });
   return <div className="mx-auto max-w-3xl">
     <Link href="/" data-testid="link-back-home" className="mb-7 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"><ChevronLeft size={16} /> {localized('Back', language)}</Link>
-    <div className="mb-7"><div className="flex gap-2">{[1, 2, 3].map((number) => <span key={number} className={`h-1.5 flex-1 ${number <= step ? 'bg-primary' : 'bg-border'}`} />)}</div><div className="mt-4 flex items-center justify-between"><p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">{localized('Request help', language)} · 0{step} {localized('of', language)} 03</p><span className="text-xs font-semibold text-muted-foreground">{service ? localized(service.name, language) : catalogService ? catalogLabel(catalogService, language) : localized('Home service', language)}</span></div><h1 className="mt-3 text-4xl font-bold leading-[.98] tracking-[-.04em] md:text-5xl">{localized(step === 1 ? 'What is going on?' : step === 2 ? 'Give us the useful detail.' : 'Where should we come?', language)}</h1></div>
+    <div className="mb-7"><div className="flex gap-2">{[1, 2, 3].map((number) => <span key={number} className={`h-1.5 flex-1 ${number <= step ? 'bg-primary' : 'bg-border'}`} />)}</div><div className="mt-4 flex items-center justify-between"><p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">{localized('Request help', language)} · 0{step} {localized('of', language)} 03</p><span className="text-xs font-semibold text-muted-foreground">{service ? localized(service.name, language) : catalogService ? catalogLabel(catalogService, language) : localized('Home service', language)}</span></div><h1 className="mt-3 text-4xl font-bold leading-[.98] tracking-[-.04em] md:text-5xl">{localized(step === 1 ? experience.prompt : step === 2 ? experience.detailPrompt : 'Where should we come?', language)}</h1></div>
     {services.isLoading ? <LoadingBlock lines={3} /> : services.isError ? <ErrorBlock retry={() => services.refetch()} /> : <div className="border border-border bg-card p-4 md:p-7">
-      {step === 1 && <div><p className="mb-4 text-sm text-muted-foreground">{localized('Choose the closest match. You can explain more next.', language)}</p><div className="grid gap-2 sm:grid-cols-2">{issues.map((issue) => <button key={issue} onClick={() => setProblem(issue)} data-testid={`button-problem-${issue.toLowerCase().replaceAll(' ', '-')}`} className={`flex min-h-14 items-center justify-between border p-4 text-left text-sm font-semibold transition ${problem === issue ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:border-primary/60 hover:bg-secondary'}`}><span>{localized(issue, language)}</span>{problem === issue ? <Check size={17} /> : <PlusMark />}</button>)}</div></div>}
-      {step === 2 && <div><label htmlFor="request-description" className="text-sm font-bold">{localized('What should the professional know?', language)}</label><p className="mt-1 text-sm text-muted-foreground">{localized('A few words help us send the right person first time.', language)}</p><textarea id="request-description" data-testid="input-request-description" value={description} onChange={(event) => setDescription(event.target.value)} placeholder={localized('For example: water is dripping under the kitchen sink...', language)} className="mt-5 min-h-40 w-full resize-none border border-input bg-background p-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-accent/30" /><div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><label className="inline-flex min-h-11 w-fit cursor-pointer items-center gap-2 border border-border px-3 text-xs font-semibold text-muted-foreground transition hover:border-primary hover:text-primary"><ImagePlus size={16} /> {localized(photoName ? 'Photo selected' : 'Add a photo (optional)', language)}<input type="file" accept="image/*" className="sr-only" data-testid="input-request-photo" onChange={(event) => setPhotoName(event.target.files?.[0]?.name || '')} /></label><span className="text-xs text-muted-foreground">{photoName ? `${photoName} · ${localized('held for this request', language)}` : `${description.length} ${localized('characters', language)}`}</span></div></div>}
+      {step === 1 && <ServiceBrief experience={experience} selected={problem} onSelect={setProblem} language={language} />}
+      {step === 2 && <div><label htmlFor="request-description" className="text-sm font-bold">{localized(experience.detailPrompt, language)}</label><p className="mt-1 text-sm text-muted-foreground">{localized(experience.helper, language)}</p><textarea id="request-description" data-testid="input-request-description" value={description} onChange={(event) => setDescription(event.target.value)} placeholder={localized(experience.placeholder, language)} className="mt-5 min-h-40 w-full resize-none border border-input bg-background p-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-accent/30" /><div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><label className="inline-flex min-h-11 w-fit cursor-pointer items-center gap-2 border border-border px-3 text-xs font-semibold text-muted-foreground transition hover:border-primary hover:text-primary"><ImagePlus size={16} /> {localized(photoName ? 'Photo selected' : 'Add a photo (optional)', language)}<input type="file" accept="image/*" className="sr-only" data-testid="input-request-photo" onChange={(event) => setPhotoName(event.target.files?.[0]?.name || '')} /></label><span className="text-xs text-muted-foreground">{photoName ? `${photoName} · ${localized('held for this request', language)}` : `${description.length} ${localized('characters', language)}`}</span></div></div>}
       {step === 3 && <div className="space-y-6"><div><label htmlFor="request-address" className="text-sm font-bold">{localized('Your Addis Ababa address', language)}</label><p className="mt-1 text-sm text-muted-foreground">{localized('A house, building, or area is enough to start.', language)}</p><div className="relative mt-3"><MapPin size={17} className="absolute left-4 top-4 text-primary" /><input id="request-address" data-testid="input-request-address" value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Bole, Kazanchis, CMC..." className="h-14 w-full border border-input bg-background pl-11 pr-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-accent/30" /></div></div><div><p className="text-sm font-bold">{localized('When do you need it?', language)}</p><div className="mt-3 grid gap-2 sm:grid-cols-3">{['Today', 'This week', 'Just planning'].map((item) => <button key={item} onClick={() => setUrgency(item)} data-testid={`button-urgency-${item.toLowerCase().replaceAll(' ', '-')}`} className={`min-h-16 border px-3 py-3 text-left text-sm transition ${urgency === item ? 'border-primary bg-secondary font-bold text-primary' : 'border-border hover:border-primary/50'}`}><Clock3 size={16} className="mb-2" />{localized(item, language)}</button>)}</div></div><div className="flex gap-3 bg-secondary/60 p-4 text-sm text-muted-foreground"><ShieldCheck className="shrink-0 text-primary" size={18} /><p>{localized('Before booking, you’ll see an estimate of', language)} <strong className="text-foreground">ETB 400–700</strong> {localized('and an arrival window.', language)}</p></div></div>}
       <div className="mt-7 flex items-center justify-between border-t border-border pt-5"><button data-testid="button-request-back" onClick={() => setStep(Math.max(1, step - 1))} className={`text-sm font-bold ${step === 1 ? 'invisible' : ''}`}>{localized('Back', language)}</button>{step < 3 ? <button disabled={!canNext} data-testid="button-request-next" onClick={() => setStep(step + 1)} className="inline-flex min-h-11 items-center gap-2 bg-primary px-5 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-35">{localized('Continue', language)} <ChevronRight size={17} /></button> : <button disabled={!canNext || create.isPending} data-testid="button-submit-request" onClick={submit} className="inline-flex min-h-11 items-center gap-2 bg-primary px-5 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-35">{localized(create.isPending ? 'Sending request...' : 'See estimate and people', language)} <ArrowRight size={17} /></button>}</div>
       {create.isError && <p className="mt-4 text-right text-sm text-destructive" data-testid="text-request-error">We could not send that. Please try again.</p>}
@@ -422,6 +481,14 @@ function RequestFlow() {
 
 function PlusMark() {
   return <span className="text-lg font-normal text-muted-foreground">+</span>;
+}
+
+function ServiceBrief({ experience, selected, onSelect, language }: { experience: ServiceExperience; selected: string; onSelect: (value: string) => void; language: Language }) {
+  const ExperienceIcon = experience.icon;
+  return <div>
+    <div className="mb-5 flex items-start gap-3 border-b border-border pb-5"><span className="grid size-11 shrink-0 place-items-center bg-secondary text-primary"><ExperienceIcon size={21} /></span><div><p className="mono-font text-[10px] uppercase tracking-[.14em] text-primary">Service-specific check</p><p className="mt-1 text-sm text-muted-foreground">{localized('Choose the closest match. You can explain more next.', language)}</p></div></div>
+    <div className="grid gap-2 sm:grid-cols-2">{experience.options.map((option) => <button key={option} onClick={() => onSelect(option)} data-testid={`button-problem-${option.toLowerCase().replaceAll(' ', '-')}`} className={`flex min-h-16 items-center justify-between border p-4 text-left text-sm font-semibold transition ${selected === option ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:border-primary/60 hover:bg-secondary'}`}><span>{localized(option, language)}</span>{selected === option ? <Check size={17} /> : <PlusMark />}</button>)}</div>
+  </div>;
 }
 
 function TechnicianPicker() {
@@ -473,7 +540,7 @@ function StatusTimeline({ currentIndex }: { currentIndex: number }) {
 function Jobs() {
   const requests = useListServiceRequests();
   const summary = useGetDashboardSummary();
-  const rows = requests.data ?? [];
+  const rows = Array.isArray(requests.data) ? requests.data : [];
   return <PageIntro eyebrow="Customer desk" title="My jobs" detail="A simple record of every request you have made with Melse." action={<Link href="/" data-testid="link-jobs-new" className="inline-flex min-h-11 items-center gap-2 bg-primary px-4 text-sm font-bold text-primary-foreground">New request <ArrowRight size={16} /></Link>}><div className="space-y-5">{summary.data?.activeBooking && <ActiveBookingCard booking={summary.data.activeBooking} />}{requests.isLoading ? <LoadingBlock lines={4} /> : requests.isError ? <ErrorBlock retry={() => requests.refetch()} /> : rows.length ? <div className="divide-y divide-border border border-border bg-card">{rows.map((request) => <Link href={`/job/${request.id}`} key={request.id} data-testid={`row-job-${request.id}`} className="flex items-center gap-3 p-4 hover:bg-secondary/40"><div className="grid size-10 place-items-center bg-secondary text-primary"><IconFor name={request.serviceSlug} /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{request.problem}</p><p className="mt-1 text-xs text-muted-foreground">{request.address} · {dateLabel(request.createdAt)}</p></div><div className="hidden text-right sm:block"><p className="mono-font text-xs">{money(request.priceMin)}–{money(request.priceMax)}</p><p className="mt-1 text-[10px] text-muted-foreground">{request.arrival}</p></div><ChevronRight size={16} className="text-muted-foreground" /></Link>)}</div> : <EmptyBlock title="No jobs yet" detail="Start with a service and we’ll keep the details here." action={<Link href="/" data-testid="link-jobs-empty-start" className="mt-4 inline-flex text-sm font-bold text-primary">Find help <ArrowRight size={15} className="ml-1" /></Link>} />}</div></PageIntro>;
 }
 
@@ -520,7 +587,9 @@ function PageIntro({ eyebrow, title, detail, action, children }: { eyebrow: stri
 function TechnicianDashboard() {
   const requests = useListServiceRequests();
   const technicians = useListTechnicians();
-  return <PageIntro eyebrow="Technician workspace" title="Today’s jobs" detail="A focused queue for local professionals. Demo status controls remain clearly marked." action={<Link href="/" data-testid="link-technician-customer" className="inline-flex min-h-10 items-center gap-2 border border-primary px-4 text-xs font-bold text-primary">Customer view <ArrowRight size={15} /></Link>}><div className="mb-5 grid gap-3 sm:grid-cols-3"><Metric label="Open requests" value={String(requests.data?.length ?? '—')} /><Metric label="Available crew" value={String(technicians.data?.filter((tech) => tech.available).length ?? '—')} /><Metric label="Area" value="Addis" /></div>{requests.isLoading ? <LoadingBlock lines={4} /> : requests.isError ? <ErrorBlock retry={() => requests.refetch()} /> : requests.data?.length ? <div className="divide-y divide-border border border-border bg-card">{requests.data.map((request) => <div key={request.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center"><div className="grid size-9 place-items-center bg-secondary text-primary"><IconFor name={request.serviceSlug} size={17} /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{request.problem}</p><p className="mt-1 text-xs text-muted-foreground">{request.address} · {request.urgency || 'Flexible'}</p></div><span className="bg-secondary px-2 py-1 text-[10px] font-bold uppercase text-muted-foreground">New request</span></div>)}</div> : <EmptyBlock title="No requests in the queue" detail="New local requests will appear here." />}</PageIntro>;
+  const requestRows = Array.isArray(requests.data) ? requests.data : [];
+  const technicianRows = Array.isArray(technicians.data) ? technicians.data : [];
+  return <PageIntro eyebrow="Technician workspace" title="Today’s jobs" detail="A focused queue for local professionals. Demo status controls remain clearly marked." action={<Link href="/" data-testid="link-technician-customer" className="inline-flex min-h-10 items-center gap-2 border border-primary px-4 text-xs font-bold text-primary">Customer view <ArrowRight size={15} /></Link>}><div className="mb-5 grid gap-3 sm:grid-cols-3"><Metric label="Open requests" value={String(requestRows.length || '—')} /><Metric label="Available crew" value={String(technicianRows.filter((tech) => tech.available).length || '—')} /><Metric label="Area" value="Addis" /></div>{requests.isLoading ? <LoadingBlock lines={4} /> : requests.isError ? <ErrorBlock retry={() => requests.refetch()} /> : requestRows.length ? <div className="divide-y divide-border border border-border bg-card">{requestRows.map((request) => <div key={request.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center"><div className="grid size-9 place-items-center bg-secondary text-primary"><IconFor name={request.serviceSlug} size={17} /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{request.problem}</p><p className="mt-1 text-xs text-muted-foreground">{request.address} · {request.urgency || 'Flexible'}</p></div><span className="bg-secondary px-2 py-1 text-[10px] font-bold uppercase text-muted-foreground">New request</span></div>)}</div> : <EmptyBlock title="No requests in the queue" detail="New local requests will appear here." />}</PageIntro>;
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
@@ -531,8 +600,9 @@ function AdminDashboard() {
   const summary = useGetDashboardSummary();
   const requests = useListServiceRequests();
   const technicians = useListTechnicians();
-  const rows = requests.data ?? [];
-  return <PageIntro eyebrow="Operations workspace" title="Service desk" detail="Coordinate requests, availability, and follow-up across Addis Ababa." action={<Link href="/" data-testid="link-admin-customer" className="inline-flex min-h-10 items-center gap-2 border border-primary px-4 text-xs font-bold text-primary">Customer view <ArrowRight size={15} /></Link>}><div className="mb-7 grid gap-3 sm:grid-cols-3"><Metric label="Requests" value={String(rows.length || '—')} /><Metric label="Technicians" value={String(technicians.data?.length || '—')} /><Metric label="Active booking" value={summary.data?.activeBooking ? '1 live' : 'None'} /></div><div className="border border-border bg-card"><div className="flex items-center justify-between border-b border-border p-4"><div><p className="mono-font text-[10px] uppercase tracking-[.14em] text-muted-foreground">Queue</p><h2 className="mt-1 font-bold">Requests needing a desk</h2></div><span className="text-xs text-muted-foreground">Live API view</span></div>{requests.isLoading ? <div className="p-4"><LoadingBlock lines={3} /></div> : requests.isError ? <div className="p-4"><ErrorBlock retry={() => requests.refetch()} /></div> : rows.length ? rows.map((request) => <div key={request.id} className="flex flex-col gap-3 border-b border-border p-4 last:border-0 md:flex-row md:items-center"><div className="min-w-0 flex-1"><p className="font-bold">{request.problem}</p><p className="mt-1 text-xs text-muted-foreground">{request.address} · {dateLabel(request.createdAt)}</p></div><div className="flex items-center gap-3"><span className="bg-accent/20 px-2 py-1 text-[10px] font-bold text-primary">{request.urgency || 'Flexible'}</span><Link href={`/technicians/${request.id}`} data-testid={`link-admin-request-${request.id}`} className="grid size-9 place-items-center border border-border text-primary"><ArrowRight size={16} /></Link></div></div>) : <div className="p-4"><EmptyBlock title="Queue is clear" detail="No customer requests need attention right now." /></div>}</div></PageIntro>;
+  const rows = Array.isArray(requests.data) ? requests.data : [];
+  const techRows = Array.isArray(technicians.data) ? technicians.data : [];
+  return <PageIntro eyebrow="Operations workspace" title="Service desk" detail="Coordinate requests, availability, and follow-up across Addis Ababa." action={<Link href="/" data-testid="link-admin-customer" className="inline-flex min-h-10 items-center gap-2 border border-primary px-4 text-xs font-bold text-primary">Customer view <ArrowRight size={15} /></Link>}><div className="mb-7 grid gap-3 sm:grid-cols-3"><Metric label="Requests" value={String(rows.length || '—')} /><Metric label="Technicians" value={String(techRows.length || '—')} /><Metric label="Active booking" value={summary.data?.activeBooking ? '1 live' : 'None'} /></div><div className="border border-border bg-card"><div className="flex items-center justify-between border-b border-border p-4"><div><p className="mono-font text-[10px] uppercase tracking-[.14em] text-muted-foreground">Queue</p><h2 className="mt-1 font-bold">Requests needing a desk</h2></div><span className="text-xs text-muted-foreground">Live API view</span></div>{requests.isLoading ? <div className="p-4"><LoadingBlock lines={3} /></div> : requests.isError ? <div className="p-4"><ErrorBlock retry={() => requests.refetch()} /></div> : rows.length ? rows.map((request) => <div key={request.id} className="flex flex-col gap-3 border-b border-border p-4 last:border-0 md:flex-row md:items-center"><div className="min-w-0 flex-1"><p className="font-bold">{request.problem}</p><p className="mt-1 text-xs text-muted-foreground">{request.address} · {dateLabel(request.createdAt)}</p></div><div className="flex items-center gap-3"><span className="bg-accent/20 px-2 py-1 text-[10px] font-bold text-primary">{request.urgency || 'Flexible'}</span><Link href={`/technicians/${request.id}`} data-testid={`link-admin-request-${request.id}`} className="grid size-9 place-items-center border border-border text-primary"><ArrowRight size={16} /></Link></div></div>) : <div className="p-4"><EmptyBlock title="Queue is clear" detail="No customer requests need attention right now." /></div>}</div></PageIntro>;
 }
 
 function Router() {
