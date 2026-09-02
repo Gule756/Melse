@@ -43,6 +43,37 @@ export interface ServiceRequestInput {
   urgency?: string;
 }
 
+export interface BusinessRegistrationInput {
+  phoneNumber: string;
+  password: string;
+  fullName: string;
+  businessName: string;
+  registrationNumber?: string;
+  billingEmail?: string;
+}
+
+export interface BusinessAccount {
+  id: string;
+  userId: string;
+  businessName: string;
+  registrationNumber?: string | null;
+  billingEmail?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type BusinessAccountResponseUser = {
+  id: string;
+  phoneNumber: string;
+  fullName: string;
+  roles: string[];
+};
+
+export interface BusinessAccountResponse {
+  user: BusinessAccountResponseUser;
+  account: BusinessAccount;
+}
+
 export type ServiceRequest = ServiceRequestInput & {
   id: string;
   createdAt: string;
@@ -117,17 +148,143 @@ export interface BookingStatusInput {
   status: BookingStatusInputStatus;
 }
 
-export type DashboardSummaryTrustStats = {
+export interface DashboardSummary {
+  activeBooking: Booking | null;
+  recentRequests: ServiceRequest[];
+}
+
+export interface Notification {
+  id: string;
+  type: string;
+  bookingId: string;
+  title: string;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface Invoice {
+  id: string;
+  bookingId: string;
+  serviceRequestId: string;
+  status: string;
+  service: string;
+  address: string;
+  subtotal: number;
+  total: number;
+  currency: string;
+  issuedAt: string;
+}
+
+export interface Guarantee {
+  id: string;
+  bookingId: string;
+  guaranteeDays: number;
+  validUntil: string;
+  status: string;
+}
+
+export interface HomecarePlan {
+  id: string;
+  name: string;
+  description: string;
+  monthlyPrice: number;
+  visitsPerMonth: number;
+  isActive: boolean;
+}
+
+export interface SupportInput {
+  message: string;
+}
+
+export interface SupportResponse {
+  mode: string;
+  needsHuman: boolean;
+  topic: string;
+  reply: string;
+}
+
+export interface AdminVerificationInput {
+  status: string;
+}
+
+export interface AdminPricingInput {
+  basePriceMin: number;
+  basePriceMax: number;
+  emergencyFee: number;
+  platformCommissionRate: number;
+}
+
+export interface PaymentInput {
+  phoneNumber: string;
+  returnUrl: string;
+}
+
+export interface PaymentInitiationResponse {
+  paymentId: string;
+  transactionId: string;
+  status: string;
+  redirectUrl?: string | null;
+}
+
+export interface PaymentVerificationResponse {
+  transactionId: string;
+  status: string;
+  verified: boolean;
+}
+
+export interface SubscriptionInput {
+  planId: string;
+}
+
+export interface PromotionInput {
+  code: string;
+}
+
+export interface AssetInput {
+  categorySlug: string;
+  name: string;
+  manufacturer?: string;
+  model?: string;
+  lastServicedAt?: string;
+  notes?: string;
+}
+
+export interface Asset {
+  id: string;
+  customerId: string;
+  categoryId: string;
+  name: string;
+  manufacturer?: string | null;
+  model?: string | null;
+  lastServicedAt?: string | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MaintenanceRecommendation {
+  id: string;
+  assetId: string;
+  title: string;
+  reason: string;
+  dueAt: string;
+  status: string;
+  createdAt: string;
+}
+
+export type AnalyticsSummaryTrustStats = {
   verifiedProfessionals: string;
   averageRating: string;
   guarantee: string;
 };
 
-export interface DashboardSummary {
-  activeBooking: Booking | null;
-  recentRequests: ServiceRequest[];
-  savedAddress: string;
-  trustStats: DashboardSummaryTrustStats;
+export interface AnalyticsSummary {
+  users: number;
+  serviceRequests: number;
+  completedBookings: number;
+  generatedAt: string;
+  savedAddress?: string;
+  trustStats?: AnalyticsSummaryTrustStats;
 }
 
 export type ListTechniciansParams = {

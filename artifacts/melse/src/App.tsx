@@ -321,6 +321,30 @@ const customerNav = [
   { href: '/profile', label: 'Profile', icon: UserRound },
 ];
 
+const marketplaceModes = [
+  { id: 'customer', label: 'Customer', description: 'I need something done' },
+  { id: 'provider', label: 'Provider', description: 'I can do the work' },
+  { id: 'admin', label: 'Admin', description: 'Operations overview' },
+] as const;
+
+function ModeSwitcher({ value, onChange }: { value: 'customer' | 'provider' | 'admin'; onChange: (mode: 'customer' | 'provider' | 'admin') => void }) {
+  const { language } = useLanguage();
+  return <div className="inline-flex w-full max-w-xl rounded-full border border-border bg-card p-1 shadow-sm">
+    {marketplaceModes.map((mode) => (
+      <button
+        key={mode.id}
+        type="button"
+        onClick={() => onChange(mode.id as 'customer' | 'provider' | 'admin')}
+        data-testid={`button-mode-${mode.id}`}
+        className={`flex-1 rounded-full px-3 py-2 text-left transition ${value === mode.id ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-secondary'}`}
+      >
+        <div className="text-sm font-bold">{mode.label}</div>
+        <div className={`text-[10px] ${value === mode.id ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>{localized(mode.description, language)}</div>
+      </button>
+    ))}
+  </div>;
+}
+
 function Shell({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -361,6 +385,7 @@ function Home() {
   const actualFor = (slug: string) => serviceList.find((item) => item.slug === slug || item.name.toLowerCase().replaceAll(' ', '-') === slug);
   const [emergencyOpen, setEmergencyOpen] = useState(false);
   const [searchValue, setSearchValue] = useState('');
+  const [mode, setMode] = useState<'customer' | 'provider' | 'admin'>('customer');
   const searchResults = useMemo(() => {
     const query = normalizeSearchText(searchValue);
     if (!query) return [];
@@ -382,13 +407,68 @@ function Home() {
       .slice(0, 6)
       .map((entry) => entry.service);
   }, [searchValue]);
-  return <div className="space-y-9">
-    <section className="relative overflow-hidden bg-primary px-5 py-7 text-primary-foreground md:px-9 md:py-9">
-      <div className="absolute -right-20 -top-28 size-72 rounded-full border-[38px] border-primary-foreground/[.06]" /><div className="absolute bottom-[-100px] right-40 size-48 rounded-full border-[24px] border-accent/20" />
-      <div className="relative max-w-2xl"><p className="rise-1 mono-font text-[10px] uppercase tracking-[.18em] text-accent">{localized('Good morning, Aster', language)}</p><h1 className="rise-2 mt-4 max-w-xl text-[2.7rem] font-bold leading-[.98] tracking-[-.045em] md:text-6xl">{localized('What do you need', language)}<br /><span className="display-font font-normal italic">{localized('help with?', language)}</span></h1><p className="rise-3 mt-4 max-w-md text-sm leading-relaxed text-primary-foreground/70">{language === 'am' ? 'ከሚያንጠባጥብ ቧንቧ እስከ ቀዝቃዛ ማቀዝቀዣ፣ ችግሩን ይንገሩን እና ትክክለኛውን የአካባቢ ባለሙያ እናመጣለን።' : 'From a dripping tap to a cold fridge, tell us what is happening and we’ll get the right local person moving.'}</p>
-        <button onClick={() => document.getElementById('services')?.scrollIntoView({ behavior: 'smooth' })} data-testid="button-start-request" className="rise-3 mt-6 inline-flex min-h-12 items-center gap-2 bg-accent px-5 text-sm font-bold text-accent-foreground transition hover:-translate-y-0.5">{localized('Find help', language)} <ArrowRight size={17} /></button>
+
+  const modeContent = {
+    customer: {
+      heroTitle: 'What do you need help with?',
+      heroDetail: 'Tell us the problem and we’ll match the right trusted local professional in Addis Ababa.',
+      primaryAction: 'Describe a job',
+      secondaryAction: 'Browse services',
+    },
+    provider: {
+      heroTitle: 'Your work, organized.',
+      heroDetail: 'Go online, manage requests, and build steady income from your service area.',
+      primaryAction: 'Open provider dashboard',
+      secondaryAction: 'View schedule',
+    },
+    admin: {
+      heroTitle: 'Marketplace operations at a glance.',
+      heroDetail: 'Monitor bookings, provider verification, payments, and service quality across the platform.',
+      primaryAction: 'Open admin desk',
+      secondaryAction: 'Review flags',
+    },
+  }[mode];
+
+  return <div className="space-y-8">
+    <section className="rounded-[28px] border border-border bg-gradient-to-br from-primary via-primary to-primary/90 p-5 text-primary-foreground shadow-[0_24px_50px_rgba(13,61,42,0.18)] md:p-8">
+      <div className="mb-5 flex justify-center md:justify-start">
+        <ModeSwitcher value={mode} onChange={setMode} />
+      </div>
+      <div className="grid gap-6 lg:grid-cols-[1.35fr_0.65fr] lg:items-end">
+        <div>
+          <p className="mono-font text-[10px] uppercase tracking-[.22em] text-accent">Melse marketplace</p>
+          <h1 className="mt-4 max-w-xl text-[2.5rem] font-bold leading-[.96] tracking-[-.05em] md:text-5xl">{localized(modeContent.heroTitle, language)}</h1>
+          <p className="mt-4 max-w-lg text-sm leading-relaxed text-primary-foreground/75">{localized(modeContent.heroDetail, language)}</p>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            {mode === 'customer' ? (
+              <>
+                <Link href="/services" data-testid="button-primary-mode" className="inline-flex min-h-11 items-center justify-center gap-2 bg-accent px-5 text-sm font-bold text-accent-foreground">{localized(modeContent.primaryAction, language)} <ArrowRight size={16} /></Link>
+                <Link href="/jobs" data-testid="button-secondary-mode" className="inline-flex min-h-11 items-center justify-center gap-2 border border-primary-foreground/25 bg-primary-foreground/5 px-5 text-sm font-bold text-primary-foreground">{localized(modeContent.secondaryAction, language)}</Link>
+              </>
+            ) : mode === 'provider' ? (
+              <>
+                <Link href="/technician" data-testid="button-primary-mode" className="inline-flex min-h-11 items-center justify-center gap-2 bg-accent px-5 text-sm font-bold text-accent-foreground">{localized(modeContent.primaryAction, language)} <ArrowRight size={16} /></Link>
+                <Link href="/admin" data-testid="button-secondary-mode" className="inline-flex min-h-11 items-center justify-center gap-2 border border-primary-foreground/25 bg-primary-foreground/5 px-5 text-sm font-bold text-primary-foreground">{localized(modeContent.secondaryAction, language)}</Link>
+              </>
+            ) : (
+              <>
+                <Link href="/admin" data-testid="button-primary-mode" className="inline-flex min-h-11 items-center justify-center gap-2 bg-accent px-5 text-sm font-bold text-accent-foreground">{localized(modeContent.primaryAction, language)} <ArrowRight size={16} /></Link>
+                <Link href="/jobs" data-testid="button-secondary-mode" className="inline-flex min-h-11 items-center justify-center gap-2 border border-primary-foreground/25 bg-primary-foreground/5 px-5 text-sm font-bold text-primary-foreground">{localized(modeContent.secondaryAction, language)}</Link>
+              </>
+            )}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-primary-foreground/15 bg-primary-foreground/5 p-4 backdrop-blur-sm">
+          <p className="mono-font text-[10px] uppercase tracking-[.18em] text-primary-foreground/70">Marketplace health</p>
+          <div className="mt-5 grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
+            <MetricCard label="Verified providers" value="128+" detail="Across Addis" />
+            <MetricCard label="Today’s jobs" value="54" detail="Booked & active" />
+            <MetricCard label="Avg. response" value="18 min" detail="From request to match" />
+          </div>
+        </div>
       </div>
     </section>
+
     <section className="flex flex-col gap-3 sm:flex-row sm:items-center">
       <div className="relative flex-1">
         <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -416,18 +496,53 @@ function Home() {
       </div>
       <button onClick={() => setEmergencyOpen(!emergencyOpen)} data-testid="button-emergency" className={`inline-flex min-h-12 items-center justify-center gap-2 border px-4 text-sm font-bold transition ${emergencyOpen ? 'border-destructive bg-destructive text-destructive-foreground' : 'border-destructive/35 bg-card text-destructive hover:bg-destructive/5'}`}><Zap size={17} /> {localized('Need help now?', language)}</button>
     </section>
-    {emergencyOpen && <div className="flex flex-col gap-4 border border-destructive/25 bg-destructive/5 p-4 sm:flex-row sm:items-center sm:justify-between" data-testid="panel-emergency"><div><p className="text-sm font-bold text-destructive">{localized('Need help now?', language)}</p><p className="mt-1 text-xs text-muted-foreground">{localized('Get a verified technician as soon as possible.', language)}</p></div><button onClick={() => document.getElementById('services')?.scrollIntoView({ behavior: 'smooth' })} data-testid="button-emergency-choose" className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 bg-destructive px-4 text-xs font-bold text-destructive-foreground">{localized('Get Help Now', language)} <ArrowRight size={15} /></button></div>}
+
+    {emergencyOpen && <div className="flex flex-col gap-4 border border-destructive/25 bg-destructive/5 p-4 sm:flex-row sm:items-center sm:justify-between" data-testid="panel-emergency"><div><p className="text-sm font-bold text-destructive">{localized('Need help now?', language)}</p><p className="mt-1 text-xs text-muted-foreground">For immediate danger, contact the relevant emergency authority first. This marketplace is for scheduled and urgent local service requests.</p></div><button onClick={() => document.getElementById('services')?.scrollIntoView({ behavior: 'smooth' })} data-testid="button-emergency-choose" className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 bg-destructive px-4 text-xs font-bold text-destructive-foreground">{localized('Get Help Now', language)} <ArrowRight size={15} /></button></div>}
+
     {summary.data?.activeBooking && <ActiveBookingCard booking={summary.data.activeBooking} />}
-    <section id="services" className="scroll-mt-24"><div className="mb-4 flex items-end justify-between"><div><p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">01 / {localized('Launch services', language)}</p><h2 className="mt-2 text-2xl font-bold tracking-tight md:text-3xl">{localized('What can we help with?', language)}</h2></div><span className="hidden text-xs text-muted-foreground sm:block">{localized('Verified local help in Addis', language)}</span></div>
+
+    <section id="services" className="scroll-mt-24">
+      <div className="mb-4 flex items-end justify-between">
+        <div>
+          <p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">01 / {localized('Launch services', language)}</p>
+          <h2 className="mt-2 text-2xl font-bold tracking-tight md:text-3xl">{localized('What can we help with?', language)}</h2>
+        </div>
+        <span className="hidden text-xs text-muted-foreground sm:block">{localized('Verified local help in Addis', language)}</span>
+      </div>
       {services.isLoading ? <LoadingBlock lines={2} /> : services.isError ? <ErrorBlock retry={() => services.refetch()} /> : <div className="grid grid-cols-2 gap-2 md:grid-cols-5">{launchServices.map((service) => <ServiceCard key={service.slug} service={service} actual={actualFor(service.slug)} />)}</div>}
       <div className="mt-4 flex justify-end"><Link href="/services" data-testid="link-see-all-services" className="inline-flex items-center gap-2 text-sm font-bold text-primary">{localized('See all services', language)} <ArrowRight size={15} /></Link></div>
     </section>
+
     <section className="grid gap-8 lg:grid-cols-[1.35fr_.65fr]">
-      <div><div className="mb-4 flex items-end justify-between"><div><p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">02 / {localized('Your activity', language)}</p><h2 className="mt-2 text-xl font-bold">{localized('Recent services', language)}</h2></div><Link href="/jobs" data-testid="link-see-all-jobs" className="text-xs font-bold text-primary">{localized('See all', language)}</Link></div>
+      <div>
+        <div className="mb-4 flex items-end justify-between">
+          <div>
+            <p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">02 / {localized('Your activity', language)}</p>
+            <h2 className="mt-2 text-xl font-bold">{localized('Recent services', language)}</h2>
+          </div>
+          <Link href="/jobs" data-testid="link-see-all-jobs" className="text-xs font-bold text-primary">{localized('See all', language)}</Link>
+        </div>
         {requests.isLoading && !recent.length ? <LoadingBlock lines={2} /> : requests.isError && !recent.length ? <ErrorBlock retry={() => requests.refetch()} /> : recent.length ? <div className="divide-y divide-border border border-border bg-card">{recent.slice(0, 4).map((request) => <Link href={`/job/${request.id}`} key={request.id} data-testid={`row-request-${request.id}`} className="flex items-center gap-3 p-4 transition hover:bg-secondary/40"><div className="grid size-9 shrink-0 place-items-center bg-secondary text-primary"><IconFor name={request.serviceSlug} size={17} /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{request.problem}</p><p className="mt-1 truncate text-xs text-muted-foreground">{request.address} · {dateLabel(request.createdAt)}</p></div><div className="hidden text-right sm:block"><p className="mono-font text-[11px]">{money(request.priceMin)}–{money(request.priceMax)}</p><p className="mt-1 text-[10px] text-muted-foreground">{request.arrival}</p></div><ChevronRight size={16} className="text-muted-foreground" /></Link>)}</div> : <EmptyBlock title={localized('Your service history is clear', language)} detail={localized('When you request help, your recent service will appear here.', language)} action={<Link href="#services" data-testid="link-empty-start" className="mt-4 inline-flex text-sm font-bold text-primary">{localized('Start a request', language)} <ArrowRight size={15} className="ml-1" /></Link>} />}
       </div>
-      <div className="border border-border bg-secondary/55 p-5"><div className="flex items-start justify-between"><div><p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">{localized('Why Melse', language)}</p><h2 className="mt-2 text-xl font-bold">{localized('A safer way to call for help.', language)}</h2></div><ShieldCheck size={24} className="text-primary" /></div><div className="mt-6 space-y-4"><TrustLine icon={BadgeCheck} title={localized('Verified people', language)} /><TrustLine icon={FileText} title={localized('Clear ETB estimate', language)} /><TrustLine icon={MessageCircle} title={localized('A desk that follows up', language)} /></div></div>
+      <div className="border border-border bg-secondary/55 p-5">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">{localized('Why Melse', language)}</p>
+            <h2 className="mt-2 text-xl font-bold">{localized('A safer way to call for help.', language)}</h2>
+          </div>
+          <ShieldCheck size={24} className="text-primary" />
+        </div>
+        <div className="mt-6 space-y-4"><TrustLine icon={BadgeCheck} title={localized('Verified people', language)} /><TrustLine icon={FileText} title={localized('Clear ETB estimate', language)} /><TrustLine icon={MessageCircle} title={localized('A desk that follows up', language)} /></div>
+      </div>
     </section>
+  </div>;
+}
+
+function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return <div className="rounded-xl border border-primary-foreground/10 bg-primary-foreground/5 p-3">
+    <p className="mono-font text-[9px] uppercase tracking-[.14em] text-primary-foreground/70">{label}</p>
+    <p className="mt-2 text-2xl font-bold">{value}</p>
+    <p className="mt-1 text-xs text-primary-foreground/70">{detail}</p>
   </div>;
 }
 
@@ -579,6 +694,43 @@ function SupportItem({ icon: SupportIcon, title, detail }: { icon: LucideIcon; t
   return <div className="border border-border bg-card p-5"><SupportIcon size={19} className="text-primary" /><h2 className="mt-4 text-sm font-bold">{title}</h2><p className="mt-2 text-xs leading-relaxed text-muted-foreground">{detail}</p></div>;
 }
 
+function AuthPage() {
+  const [, setLocation] = useLocation();
+  const [register, setRegister] = useState(false);
+  const [fullName, setFullName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+    const response = await fetch(register ? '/api/auth/register' : '/api/auth/login', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ fullName, phoneNumber, password }) });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      setError(body.error || 'Could not sign you in.');
+      return;
+    }
+    setLocation('/');
+    window.location.reload();
+  };
+  return <div className="mx-auto flex min-h-[70vh] max-w-md items-center"><form onSubmit={submit} className="w-full border border-border bg-card p-6 shadow-sm"><Mark /><h1 className="mt-8 text-3xl font-bold">{register ? 'Create your Melse account' : 'Welcome back'}</h1><p className="mt-2 text-sm text-muted-foreground">Use your Ethiopian phone number to continue.</p>{register && <label className="mt-6 block text-sm font-semibold">Full name<input required value={fullName} onChange={(event) => setFullName(event.target.value)} className="mt-2 h-12 w-full border border-input bg-background px-3 outline-none focus:border-primary" /></label>}<label className="mt-5 block text-sm font-semibold">Phone number<input required inputMode="tel" value={phoneNumber} onChange={(event) => setPhoneNumber(event.target.value)} placeholder="09... or +251..." className="mt-2 h-12 w-full border border-input bg-background px-3 outline-none focus:border-primary" /></label><label className="mt-5 block text-sm font-semibold">Password<input required type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} className="mt-2 h-12 w-full border border-input bg-background px-3 outline-none focus:border-primary" /></label>{error && <p className="mt-4 text-sm text-destructive">{error}</p>}<button type="submit" className="mt-6 min-h-12 w-full bg-primary px-4 text-sm font-bold text-primary-foreground">{register ? 'Create account' : 'Sign in'}</button><button type="button" onClick={() => setRegister(!register)} className="mt-4 w-full text-sm font-semibold text-primary">{register ? 'Already have an account? Sign in' : 'New to Melse? Create an account'}</button></form></div>;
+}
+
+function AuthGate({ children }: { children: ReactNode }) {
+  const [location, setLocation] = useLocation();
+  const [checking, setChecking] = useState(location !== '/auth');
+  const [authenticated, setAuthenticated] = useState(location === '/auth');
+  useEffect(() => {
+    if (location === '/auth') { setAuthenticated(true); setChecking(false); return; }
+    let active = true;
+    setChecking(true);
+    fetch('/api/auth/me', { credentials: 'same-origin' }).then((response) => { if (active) { setAuthenticated(response.ok); setChecking(false); if (!response.ok) setLocation('/auth'); } }).catch(() => { if (active) { setAuthenticated(false); setChecking(false); setLocation('/auth'); } });
+    return () => { active = false; };
+  }, [location, setLocation]);
+  if (checking) return <div className="grid min-h-[70vh] place-items-center text-sm text-muted-foreground">Checking your session...</div>;
+  return authenticated ? <>{children}</> : null;
+}
+
 function PageIntro({ eyebrow, title, detail, action, children }: { eyebrow: string; title: string; detail: string; action?: ReactNode; children: ReactNode }) {
   const { language } = useLanguage();
   return <div className="mx-auto max-w-4xl"><div className="mb-8 flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-end sm:justify-between"><div><p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">{localized(eyebrow, language)}</p><h1 className="mt-3 text-4xl font-bold tracking-[-.04em] md:text-5xl">{localized(title, language)}</h1><p className="mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">{localized(detail, language)}</p></div>{action}</div>{children}</div>;
@@ -607,7 +759,7 @@ function AdminDashboard() {
 
 function Router() {
   const [location] = useLocation();
-return <ErrorBoundary resetKey={location}><Shell><Switch><Route path="/" component={Home} /><Route path="/jobs" component={Jobs} /><Route path="/my-jobs" component={Jobs} /><Route path="/messages" component={Messages} /><Route path="/profile" component={Profile} /><Route path="/support" component={Support} /><Route path="/services" component={ServiceDirectory} /><Route path="/request/:serviceSlug" component={RequestFlow} /><Route path="/technicians/:requestId" component={TechnicianPicker} /><Route path="/job/:id" component={RequestDetails} /><Route path="/jobs/:id" component={RequestDetails} /><Route path="/booking/:id" component={BookingPage} /><Route path="/technician" component={TechnicianDashboard} /><Route path="/admin" component={AdminDashboard} /><Route component={NotFound} /></Switch></Shell></ErrorBoundary>;
+return <ErrorBoundary resetKey={location}><Switch><Route path="/auth" component={AuthPage} /><Route><AuthGate><Shell><Switch><Route path="/" component={Home} /><Route path="/jobs" component={Jobs} /><Route path="/my-jobs" component={Jobs} /><Route path="/messages" component={Messages} /><Route path="/profile" component={Profile} /><Route path="/support" component={Support} /><Route path="/services" component={ServiceDirectory} /><Route path="/request/:serviceSlug" component={RequestFlow} /><Route path="/technicians/:requestId" component={TechnicianPicker} /><Route path="/job/:id" component={RequestDetails} /><Route path="/jobs/:id" component={RequestDetails} /><Route path="/booking/:id" component={BookingPage} /><Route path="/technician" component={TechnicianDashboard} /><Route path="/admin" component={AdminDashboard} /><Route component={NotFound} /></Switch></Shell></AuthGate></Route></Switch></ErrorBoundary>;
 }
 
 function App() {

@@ -20,7 +20,259 @@ tags:
     description: Booking and job tracking
   - name: dashboard
     description: Operational summaries
+  - name: business
+    description: Business accounts
+  - name: phase3
+    description: HomeCare, promotions, and loyalty
+  - name: support
+    description: Transparent support assistance
+  - name: admin
+    description: Admin controls and operations
+  - name: payments
+    description: Payment provider abstraction
 paths:
+  /bookings/{id}/payment:
+    post:
+      operationId: initiateBookingPayment
+      tags: [payments]
+      summary: Initiate a booking payment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentInput"
+      responses:
+        "202":
+          description: Payment pending provider confirmation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentInitiationResponse"
+  /payments/{transactionId}/verify:
+    post:
+      operationId: verifyPayment
+      tags: [payments]
+      summary: Verify a provider payment transaction
+      parameters:
+        - name: transactionId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentVerificationResponse"
+  /admin/verifications:
+    get:
+      operationId: listAdminVerifications
+      tags: [admin]
+      summary: List technician verification profiles
+      responses:
+        "200": { description: Verification queue }
+  /admin/verifications/{id}:
+    patch:
+      operationId: updateAdminVerification
+      tags: [admin]
+      summary: Update technician verification status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminVerificationInput"
+      responses:
+        "200": { description: Updated verification }
+  /admin/pricing:
+    get:
+      operationId: listAdminPricing
+      tags: [admin]
+      summary: List pricing rules
+      responses:
+        "200": { description: Pricing rules }
+  /admin/pricing/{id}:
+    patch:
+      operationId: updateAdminPricing
+      tags: [admin]
+      summary: Update a pricing rule
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminPricingInput"
+      responses:
+        "200": { description: Updated pricing rule }
+  /admin/dispatch:
+    get:
+      operationId: listAdminDispatch
+      tags: [admin]
+      summary: List live dispatch bookings
+      responses:
+        "200": { description: Active dispatch queue }
+  /support/assist:
+    post:
+      operationId: assistSupport
+      tags: [support]
+      summary: Get support guidance and escalation signals
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupportInput"
+      responses:
+        "200":
+          description: Support guidance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportResponse"
+  /homecare/plans:
+    get:
+      operationId: listHomecarePlans
+      tags: [phase3]
+      summary: List active HomeCare plans
+      responses:
+        "200":
+          description: HomeCare plans
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/HomecarePlan" }
+  /homecare/subscribe:
+    post:
+      operationId: subscribeHomecare
+      tags: [phase3]
+      summary: Subscribe to a HomeCare plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscriptionInput"
+      responses:
+        "201": { description: HomeCare subscription }
+  /homecare/subscription:
+    get:
+      operationId: getHomecareSubscription
+      tags: [phase3]
+      summary: Get the active HomeCare subscription
+      responses:
+        "200": { description: Active subscription }
+  /loyalty:
+    get:
+      operationId: getLoyaltyAccount
+      tags: [phase3]
+      summary: Get the customer's loyalty balance
+      responses:
+        "200": { description: Loyalty balance }
+  /promotions/validate:
+    post:
+      operationId: validatePromotion
+      tags: [phase3]
+      summary: Validate a promotion code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PromotionInput"
+      responses:
+        "200": { description: Valid promotion }
+  /assets:
+    get:
+      operationId: listAssets
+      tags: [phase3]
+      summary: List customer assets
+      responses:
+        "200":
+          description: Assets
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/Asset" } }
+    post:
+      operationId: createAsset
+      tags: [phase3]
+      summary: Register a customer asset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssetInput" }
+      responses:
+        "201": { description: Asset created }
+  /maintenance/recommendations:
+    get:
+      operationId: listMaintenanceRecommendations
+      tags: [phase3]
+      summary: List transparent maintenance recommendations
+      responses:
+        "200":
+          description: Maintenance recommendations
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: "#/components/schemas/MaintenanceRecommendation" } }
+  /analytics/summary:
+    get:
+      operationId: getAnalyticsSummary
+      tags: [phase3]
+      summary: Get aggregate platform analytics
+      responses:
+        "200":
+          description: Aggregate analytics
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AnalyticsSummary" }
+  /business/register:
+    post:
+      operationId: registerBusiness
+      tags: [business]
+      summary: Create a business account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BusinessRegistrationInput"
+      responses:
+        "201":
+          description: Business account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessAccountResponse"
+  /business/profile:
+    get:
+      operationId: getBusinessProfile
+      tags: [business]
+      summary: Get the authenticated business profile
+      responses:
+        "200":
+          description: Business profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessAccount"
   /healthz:
     get:
       operationId: healthCheck
@@ -178,6 +430,66 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DashboardSummary"
+  /service-history:
+    get:
+      operationId: getServiceHistory
+      tags: [requests]
+      summary: Get the customer's service history
+      responses:
+        "200":
+          description: Service history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServiceRequest"
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [dashboard]
+      summary: List booking notifications
+      responses:
+        "200":
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+  /bookings/{id}/invoice:
+    get:
+      operationId: getBookingInvoice
+      tags: [bookings]
+      summary: Get an invoice for a booking
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Invoice
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Invoice" }
+  /bookings/{id}/guarantee:
+    get:
+      operationId: getBookingGuarantee
+      tags: [bookings]
+      summary: Get a booking service guarantee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Service guarantee
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Guarantee" }
 components:
   schemas:
     HealthStatus:
@@ -224,6 +536,42 @@ components:
         description: { type: string }
         address: { type: string }
         urgency: { type: string }
+    BusinessRegistrationInput:
+      type: object
+      required: [phoneNumber, password, fullName, businessName]
+      properties:
+        phoneNumber: { type: string }
+        password: { type: string }
+        fullName: { type: string }
+        businessName: { type: string }
+        registrationNumber: { type: string }
+        billingEmail: { type: string }
+    BusinessAccount:
+      type: object
+      required: [id, userId, businessName, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        businessName: { type: string }
+        registrationNumber: { type: string, nullable: true }
+        billingEmail: { type: string, nullable: true }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+    BusinessAccountResponse:
+      type: object
+      required: [user, account]
+      properties:
+        user:
+          type: object
+          required: [id, phoneNumber, fullName, roles]
+          properties:
+            id: { type: string }
+            phoneNumber: { type: string }
+            fullName: { type: string }
+            roles:
+              type: array
+              items: { type: string }
+        account: { $ref: "#/components/schemas/BusinessAccount" }
     ServiceRequest:
       allOf:
         - $ref: "#/components/schemas/ServiceRequestInput"
@@ -278,6 +626,149 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ServiceRequest"
+    Notification:
+      type: object
+      required: [id, type, bookingId, title, read, createdAt]
+      properties:
+        id: { type: string }
+        type: { type: string }
+        bookingId: { type: string }
+        title: { type: string }
+        read: { type: boolean }
+        createdAt: { type: string }
+    Invoice:
+      type: object
+      required: [id, bookingId, serviceRequestId, status, service, address, subtotal, total, currency, issuedAt]
+      properties:
+        id: { type: string }
+        bookingId: { type: string }
+        serviceRequestId: { type: string }
+        status: { type: string }
+        service: { type: string }
+        address: { type: string }
+        subtotal: { type: number }
+        total: { type: number }
+        currency: { type: string }
+        issuedAt: { type: string }
+    Guarantee:
+      type: object
+      required: [id, bookingId, guaranteeDays, validUntil, status]
+      properties:
+        id: { type: string }
+        bookingId: { type: string }
+        guaranteeDays: { type: number, format: int32 }
+        validUntil: { type: string }
+        status: { type: string }
+    HomecarePlan:
+      type: object
+      required: [id, name, description, monthlyPrice, visitsPerMonth, isActive]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        monthlyPrice: { type: number }
+        visitsPerMonth: { type: number, format: int32 }
+        isActive: { type: boolean }
+    SupportInput:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+    SupportResponse:
+      type: object
+      required: [mode, needsHuman, topic, reply]
+      properties:
+        mode: { type: string }
+        needsHuman: { type: boolean }
+        topic: { type: string }
+        reply: { type: string }
+    AdminVerificationInput:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string }
+    AdminPricingInput:
+      type: object
+      required: [basePriceMin, basePriceMax, emergencyFee, platformCommissionRate]
+      properties:
+        basePriceMin: { type: number }
+        basePriceMax: { type: number }
+        emergencyFee: { type: number }
+        platformCommissionRate: { type: number }
+    PaymentInput:
+      type: object
+      required: [phoneNumber, returnUrl]
+      properties:
+        phoneNumber: { type: string }
+        returnUrl: { type: string }
+    PaymentInitiationResponse:
+      type: object
+      required: [paymentId, transactionId, status]
+      properties:
+        paymentId: { type: string }
+        transactionId: { type: string }
+        status: { type: string }
+        redirectUrl: { type: string, nullable: true }
+    PaymentVerificationResponse:
+      type: object
+      required: [transactionId, status, verified]
+      properties:
+        transactionId: { type: string }
+        status: { type: string }
+        verified: { type: boolean }
+    SubscriptionInput:
+      type: object
+      required: [planId]
+      properties:
+        planId: { type: string }
+    PromotionInput:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string }
+    AssetInput:
+      type: object
+      required: [categorySlug, name]
+      properties:
+        categorySlug: { type: string }
+        name: { type: string }
+        manufacturer: { type: string }
+        model: { type: string }
+        lastServicedAt: { type: string }
+        notes: { type: string }
+    Asset:
+      type: object
+      required: [id, customerId, categoryId, name, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        customerId: { type: string }
+        categoryId: { type: string }
+        name: { type: string }
+        manufacturer: { type: string, nullable: true }
+        model: { type: string, nullable: true }
+        lastServicedAt: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+    MaintenanceRecommendation:
+      type: object
+      required: [id, assetId, title, reason, dueAt, status, createdAt]
+      properties:
+        id: { type: string }
+        assetId: { type: string }
+        title: { type: string }
+        reason: { type: string }
+        dueAt: { type: string }
+        status: { type: string }
+        createdAt: { type: string }
+    AnalyticsSummary:
+      type: object
+      required: [users, serviceRequests, completedBookings, generatedAt]
+      properties:
+        users: { type: number }
+        serviceRequests: { type: number }
+        completedBookings: { type: number }
+        generatedAt: { type: string }
         savedAddress: { type: string }
         trustStats:
           type: object

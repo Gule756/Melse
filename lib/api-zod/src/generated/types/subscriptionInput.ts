@@ -6,8 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type DashboardSummaryTrustStats = {
-  verifiedProfessionals: string;
-  averageRating: string;
-  guarantee: string;
-};
+export interface SubscriptionInput {
+  planId: string;
+}

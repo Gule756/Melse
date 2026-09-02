@@ -9,6 +9,260 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Initiate a booking payment
+ */
+export const InitiateBookingPaymentParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const InitiateBookingPaymentBody = zod.object({
+  "phoneNumber": zod.string(),
+  "returnUrl": zod.string()
+})
+
+export const InitiateBookingPaymentResponse = zod.object({
+  "paymentId": zod.string(),
+  "transactionId": zod.string(),
+  "status": zod.string(),
+  "redirectUrl": zod.string().nullish()
+})
+
+
+/**
+ * @summary Verify a provider payment transaction
+ */
+export const VerifyPaymentParams = zod.object({
+  "transactionId": zod.coerce.string()
+})
+
+export const VerifyPaymentResponse = zod.object({
+  "transactionId": zod.string(),
+  "status": zod.string(),
+  "verified": zod.boolean()
+})
+
+
+/**
+ * @summary List technician verification profiles
+ */
+export const ListAdminVerificationsResponse = zod.unknown()
+
+
+/**
+ * @summary Update technician verification status
+ */
+export const UpdateAdminVerificationParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const UpdateAdminVerificationBody = zod.object({
+  "status": zod.string()
+})
+
+export const UpdateAdminVerificationResponse = zod.unknown()
+
+
+/**
+ * @summary List pricing rules
+ */
+export const ListAdminPricingResponse = zod.unknown()
+
+
+/**
+ * @summary Update a pricing rule
+ */
+export const UpdateAdminPricingParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const UpdateAdminPricingBody = zod.object({
+  "basePriceMin": zod.number(),
+  "basePriceMax": zod.number(),
+  "emergencyFee": zod.number(),
+  "platformCommissionRate": zod.number()
+})
+
+export const UpdateAdminPricingResponse = zod.unknown()
+
+
+/**
+ * @summary List live dispatch bookings
+ */
+export const ListAdminDispatchResponse = zod.unknown()
+
+
+/**
+ * @summary Get support guidance and escalation signals
+ */
+export const AssistSupportBody = zod.object({
+  "message": zod.string()
+})
+
+export const AssistSupportResponse = zod.object({
+  "mode": zod.string(),
+  "needsHuman": zod.boolean(),
+  "topic": zod.string(),
+  "reply": zod.string()
+})
+
+
+/**
+ * @summary List active HomeCare plans
+ */
+export const ListHomecarePlansResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "description": zod.string(),
+  "monthlyPrice": zod.number(),
+  "visitsPerMonth": zod.number(),
+  "isActive": zod.boolean()
+})
+export const ListHomecarePlansResponse = zod.array(ListHomecarePlansResponseItem)
+
+
+/**
+ * @summary Subscribe to a HomeCare plan
+ */
+export const SubscribeHomecareBody = zod.object({
+  "planId": zod.string()
+})
+
+export const SubscribeHomecareResponse = zod.void()
+
+
+/**
+ * @summary Get the active HomeCare subscription
+ */
+export const GetHomecareSubscriptionResponse = zod.unknown()
+
+
+/**
+ * @summary Get the customer's loyalty balance
+ */
+export const GetLoyaltyAccountResponse = zod.unknown()
+
+
+/**
+ * @summary Validate a promotion code
+ */
+export const ValidatePromotionBody = zod.object({
+  "code": zod.string()
+})
+
+export const ValidatePromotionResponse = zod.unknown()
+
+
+/**
+ * @summary List customer assets
+ */
+export const ListAssetsResponseItem = zod.object({
+  "id": zod.string(),
+  "customerId": zod.string(),
+  "categoryId": zod.string(),
+  "name": zod.string(),
+  "manufacturer": zod.string().nullish(),
+  "model": zod.string().nullish(),
+  "lastServicedAt": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListAssetsResponse = zod.array(ListAssetsResponseItem)
+
+
+/**
+ * @summary Register a customer asset
+ */
+export const CreateAssetBody = zod.object({
+  "categorySlug": zod.string(),
+  "name": zod.string(),
+  "manufacturer": zod.string().optional(),
+  "model": zod.string().optional(),
+  "lastServicedAt": zod.string().optional(),
+  "notes": zod.string().optional()
+})
+
+export const CreateAssetResponse = zod.void()
+
+
+/**
+ * @summary List transparent maintenance recommendations
+ */
+export const ListMaintenanceRecommendationsResponseItem = zod.object({
+  "id": zod.string(),
+  "assetId": zod.string(),
+  "title": zod.string(),
+  "reason": zod.string(),
+  "dueAt": zod.string(),
+  "status": zod.string(),
+  "createdAt": zod.string()
+})
+export const ListMaintenanceRecommendationsResponse = zod.array(ListMaintenanceRecommendationsResponseItem)
+
+
+/**
+ * @summary Get aggregate platform analytics
+ */
+export const GetAnalyticsSummaryResponse = zod.object({
+  "users": zod.number(),
+  "serviceRequests": zod.number(),
+  "completedBookings": zod.number(),
+  "generatedAt": zod.string(),
+  "savedAddress": zod.string().optional(),
+  "trustStats": zod.object({
+  "verifiedProfessionals": zod.string(),
+  "averageRating": zod.string(),
+  "guarantee": zod.string()
+}).optional()
+})
+
+
+/**
+ * @summary Create a business account
+ */
+export const RegisterBusinessBody = zod.object({
+  "phoneNumber": zod.string(),
+  "password": zod.string(),
+  "fullName": zod.string(),
+  "businessName": zod.string(),
+  "registrationNumber": zod.string().optional(),
+  "billingEmail": zod.string().optional()
+})
+
+export const RegisterBusinessResponse = zod.object({
+  "user": zod.object({
+  "id": zod.string(),
+  "phoneNumber": zod.string(),
+  "fullName": zod.string(),
+  "roles": zod.array(zod.string())
+}),
+  "account": zod.object({
+  "id": zod.string(),
+  "userId": zod.string(),
+  "businessName": zod.string(),
+  "registrationNumber": zod.string().nullish(),
+  "billingEmail": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+})
+
+
+/**
+ * @summary Get the authenticated business profile
+ */
+export const GetBusinessProfileResponse = zod.object({
+  "id": zod.string(),
+  "userId": zod.string(),
+  "businessName": zod.string(),
+  "registrationNumber": zod.string().nullish(),
+  "billingEmail": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
  * Returns server health status
  * @summary Health check
  */
@@ -207,13 +461,77 @@ export const GetDashboardSummaryResponse = zod.object({
   "priceMin": zod.number(),
   "priceMax": zod.number(),
   "arrival": zod.string()
-}))),
-  "savedAddress": zod.string(),
-  "trustStats": zod.object({
-  "verifiedProfessionals": zod.string(),
-  "averageRating": zod.string(),
-  "guarantee": zod.string()
+})))
 })
+
+
+/**
+ * @summary Get the customer's service history
+ */
+export const GetServiceHistoryResponseItem = zod.object({
+  "serviceSlug": zod.string(),
+  "problem": zod.string(),
+  "description": zod.string(),
+  "address": zod.string(),
+  "urgency": zod.string().optional()
+}).and(zod.object({
+  "id": zod.string(),
+  "createdAt": zod.string(),
+  "priceMin": zod.number(),
+  "priceMax": zod.number(),
+  "arrival": zod.string()
+}))
+export const GetServiceHistoryResponse = zod.array(GetServiceHistoryResponseItem)
+
+
+/**
+ * @summary List booking notifications
+ */
+export const ListNotificationsResponseItem = zod.object({
+  "id": zod.string(),
+  "type": zod.string(),
+  "bookingId": zod.string(),
+  "title": zod.string(),
+  "read": zod.boolean(),
+  "createdAt": zod.string()
+})
+export const ListNotificationsResponse = zod.array(ListNotificationsResponseItem)
+
+
+/**
+ * @summary Get an invoice for a booking
+ */
+export const GetBookingInvoiceParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const GetBookingInvoiceResponse = zod.object({
+  "id": zod.string(),
+  "bookingId": zod.string(),
+  "serviceRequestId": zod.string(),
+  "status": zod.string(),
+  "service": zod.string(),
+  "address": zod.string(),
+  "subtotal": zod.number(),
+  "total": zod.number(),
+  "currency": zod.string(),
+  "issuedAt": zod.string()
+})
+
+
+/**
+ * @summary Get a booking service guarantee
+ */
+export const GetBookingGuaranteeParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const GetBookingGuaranteeResponse = zod.object({
+  "id": zod.string(),
+  "bookingId": zod.string(),
+  "guaranteeDays": zod.number(),
+  "validUntil": zod.string(),
+  "status": zod.string()
 })
 
 

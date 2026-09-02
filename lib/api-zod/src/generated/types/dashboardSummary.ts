@@ -6,12 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Booking } from './booking';
-import type { DashboardSummaryTrustStats } from './dashboardSummaryTrustStats';
 import type { ServiceRequest } from './serviceRequest';
 
 export interface DashboardSummary {
   activeBooking: Booking | null;
   recentRequests: ServiceRequest[];
-  savedAddress: string;
-  trustStats: DashboardSummaryTrustStats;
 }
