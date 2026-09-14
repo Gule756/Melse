@@ -2252,6 +2252,160 @@ export function useGetServiceHistory<TData = Awaited<ReturnType<typeof getServic
 
 
 
+export const getListProviderJobsUrl = () => {
+
+
+
+
+  return `/api/provider/jobs`
+}
+
+/**
+ * @summary List jobs assigned to the authenticated provider
+ */
+export const listProviderJobs = async ( options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getListProviderJobsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListProviderJobsQueryKey = () => {
+    return [
+    `/api/provider/jobs`
+    ] as const;
+    }
+
+
+export const getListProviderJobsQueryOptions = <TData = Awaited<ReturnType<typeof listProviderJobs>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProviderJobs>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListProviderJobsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listProviderJobs>>> = ({ signal }) => listProviderJobs({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listProviderJobs>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListProviderJobsQueryResult = NonNullable<Awaited<ReturnType<typeof listProviderJobs>>>
+export type ListProviderJobsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List jobs assigned to the authenticated provider
+ */
+
+export function useListProviderJobs<TData = Awaited<ReturnType<typeof listProviderJobs>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listProviderJobs>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListProviderJobsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetProviderEarningsUrl = () => {
+
+
+
+
+  return `/api/provider/earnings`
+}
+
+/**
+ * @summary Get completed provider earnings
+ */
+export const getProviderEarnings = async ( options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getGetProviderEarningsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetProviderEarningsQueryKey = () => {
+    return [
+    `/api/provider/earnings`
+    ] as const;
+    }
+
+
+export const getGetProviderEarningsQueryOptions = <TData = Awaited<ReturnType<typeof getProviderEarnings>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProviderEarnings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetProviderEarningsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getProviderEarnings>>> = ({ signal }) => getProviderEarnings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getProviderEarnings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetProviderEarningsQueryResult = NonNullable<Awaited<ReturnType<typeof getProviderEarnings>>>
+export type GetProviderEarningsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get completed provider earnings
+ */
+
+export function useGetProviderEarnings<TData = Awaited<ReturnType<typeof getProviderEarnings>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProviderEarnings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetProviderEarningsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getListNotificationsUrl = () => {
 
 

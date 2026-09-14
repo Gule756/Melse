@@ -1,4 +1,5 @@
 import request from "supertest";
+import { createHmac } from "node:crypto";
 import { sql } from "drizzle-orm";
 import app from "../src/app";
 import { db } from "@workspace/db";
@@ -6,7 +7,7 @@ import { db } from "@workspace/db";
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function resetDatabase() {
-  await db.execute(sql`TRUNCATE TABLE "user_roles", "sessions", "password_reset_tokens", "bookings", "booking_status_history", "reviews", "service_guarantees", "payments", "service_requests", "customer_addresses", "technician_skills", "technician_profiles", "pricing_rules", "service_categories", "users" RESTART IDENTITY CASCADE;`);
+  await db.execute(sql`TRUNCATE TABLE "webhook_events", "provider_offers", "ledger_entries", "payouts", "user_roles", "sessions", "password_reset_tokens", "bookings", "booking_status_history", "reviews", "service_guarantees", "payments", "service_requests", "customer_addresses", "technician_skills", "technician_profiles", "pricing_rules", "service_categories", "users" RESTART IDENTITY CASCADE;`);
   await db.execute(sql`
     INSERT INTO service_categories (id, name, slug, icon_name, description)
     VALUES
@@ -112,6 +113,42 @@ describe("Melse auth and authorization", () => {
     expect(duplicate.status).toBe(409);
   });
 
+  it("rate limits repeated failed login attempts", async () => {
+    let lastStatus = 0;
+
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const response = await request(app)
+        .post("/api/auth/login")
+        .send({ phoneNumber: "+251911234568", password: "wrongpass" });
+      lastStatus = response.status;
+    }
+
+    expect(lastStatus).toBe(429);
+  });
+
+  it("supports profile updates, account suspension, and customer/provider mode switching", async () => {
+    const customer = await request(app).post("/api/auth/register").send({ fullName: "Mode User", phoneNumber: "+251911400001", password: "hunter2pass" });
+    const profile = await request(app).patch("/api/auth/profile").set("Cookie", authCookie(customer)!).send({ fullName: "Updated Mode User" });
+    expect(profile.status).toBe(200);
+    expect(profile.body.user.fullName).toBe("Updated Mode User");
+
+    const deniedMode = await request(app).patch("/api/auth/mode").set("Cookie", authCookie(customer)!).send({ mode: "PROVIDER" });
+    expect(deniedMode.status).toBe(403);
+
+    await request(app).post("/api/provider/activate").set("Cookie", authCookie(customer)!).send({ serviceArea: "Bole" });
+    const providerMode = await request(app).patch("/api/auth/mode").set("Cookie", authCookie(customer)!).send({ mode: "PROVIDER" });
+    expect(providerMode.status).toBe(200);
+    expect(providerMode.body.activeMode).toBe("PROVIDER");
+
+    const admin = await request(app).post("/api/admin/bootstrap").set("x-admin-bootstrap-token", "dev-bootstrap-secret").send({ phoneNumber: "+251911400002", password: "adminpass", fullName: "Status Admin" });
+    const adminLogin = await request(app).post("/api/auth/login").send({ phoneNumber: "+251911400002", password: "adminpass" });
+    const suspended = await request(app).patch(`/api/admin/users/${customer.body.user.id}/status`).set("Cookie", authCookie(adminLogin)!).send({ isActive: false });
+    expect(suspended.status).toBe(200);
+    const blocked = await request(app).get("/api/auth/me").set("Cookie", authCookie(customer)!);
+    expect(blocked.status).toBe(401);
+    expect(admin.status).toBe(200);
+  });
+
   it("requires authentication for protected endpoints and rejects invalid sessions", async () => {
     const unauth = await request(app).get("/api/auth/me");
     expect(unauth.status).toBe(401);
@@ -147,9 +184,14 @@ describe("Melse auth and authorization", () => {
         problem: "Power outage",
         description: "My breaker tripped.",
         address: "Bole Road",
+        preferredAt: "2026-09-10T10:00:00.000Z",
+        budget: 700,
+        problemPhotos: ["https://example.test/socket.jpg"],
       });
 
     expect(customerRequest.status).toBe(201);
+    expect(customerRequest.body.budget).toBe(700);
+    expect(customerRequest.body.problemPhotos).toEqual(["https://example.test/socket.jpg"]);
 
     const adminUser = await request(app)
       .post("/api/auth/register")
@@ -217,6 +259,13 @@ describe("Melse auth and authorization", () => {
       .set("Cookie", authCookie(customerA)!)
       .send({ requestId: requestA.body.id, technicianId: provider.body.user.id });
     expect(booking.status).toBe(201);
+
+    const providerJobs = await request(app).get("/api/provider/jobs").set("Cookie", providerCookie);
+    expect(providerJobs.status).toBe(200);
+    expect(providerJobs.body.some((job: { id: string }) => job.id === booking.body.id)).toBe(true);
+    const providerEarnings = await request(app).get("/api/provider/earnings").set("Cookie", providerCookie);
+    expect(providerEarnings.status).toBe(200);
+    expect(providerEarnings.body.currency).toBe("ETB");
 
     const forbidden = await request(app)
       .patch(`/api/bookings/${booking.body.id}/status`)
@@ -320,11 +369,21 @@ describe("Melse auth and authorization", () => {
     const provider = await request(app)
       .post("/api/auth/register")
       .send({ fullName: "Available Provider", phoneNumber: "+251911300003", password: "providerpass" });
-    await request(app).post("/api/provider/activate").set("Cookie", authCookie(provider)!).send({ serviceArea: "Bole" });
+    await request(app).post("/api/provider/activate").set("Cookie", authCookie(provider)!).send({ serviceArea: "Bole", categorySlugs: ["electrician"] });
+
+    const serviceRequest = await request(app).post("/api/service-requests").set("Cookie", authCookie(business)!).send({ serviceSlug: "electrician", problem: "Power issue", description: "Kitchen circuit", address: "Bole" });
+    expect(serviceRequest.status).toBe(201);
+    const offers = await request(app).get("/api/provider/offers").set("Cookie", authCookie(provider)!);
+    expect(offers.status).toBe(200);
+    const offer = offers.body.find((item: { requestId: string }) => item.requestId === serviceRequest.body.id);
+    expect(offer).toBeTruthy();
+    const answered = await request(app).patch(`/api/provider/offers/${offer.id}`).set("Cookie", authCookie(provider)!).send({ status: "ACCEPTED", quotedPrice: 550 });
+    expect(answered.status).toBe(200);
+    expect(answered.body.quotedPrice).toBe("550.00");
 
     const technicians = await request(app).get("/api/technicians?serviceSlug=electrician").set("Cookie", authCookie(business)!);
     expect(technicians.status).toBe(200);
-    expect(technicians.body[0].distance).toBe("Matched to your service");
+    expect(technicians.body[0].distance).toBe("Matched by skill and radius");
   });
 
   it("stores customer assets and creates maintenance recommendations", async () => {
@@ -407,5 +466,15 @@ describe("Melse auth and authorization", () => {
     const verify = await request(app).post(`/api/payments/${payment.body.transactionId}/verify`).set("Cookie", authCookie(customer)!).send();
     expect(verify.status).toBe(200);
     expect(verify.body.status).toBe("PENDING");
+
+    process.env.CHAPA_WEBHOOK_SECRET = "webhook-test-secret";
+    const webhookPayload = { id: "event-payment-1", tx_ref: payment.body.transactionId, status: "pending" };
+    const signature = createHmac("sha256", process.env.CHAPA_WEBHOOK_SECRET).update(JSON.stringify(webhookPayload)).digest("hex");
+    const webhook = await request(app).post("/api/payments/webhook").set("x-chapa-signature", signature).send(webhookPayload);
+    expect(webhook.status).toBe(200);
+    expect(webhook.body.duplicate).toBe(false);
+    const replay = await request(app).post("/api/payments/webhook").set("x-chapa-signature", signature).send(webhookPayload);
+    expect(replay.status).toBe(200);
+    expect(replay.body.duplicate).toBe(true);
   });
 });

@@ -1,0 +1,800 @@
+MASTER IMPLEMENTATION PLAN — 8 PHASES
+
+IMPORTANT:
+
+You have already performed a read-only audit of this repository.
+
+The audit found:
+
+- Overall real completion: approximately 16%
+- Core MVP completion: approximately 45%
+- Production readiness: approximately 8%
+- PostgreSQL/Drizzle schema exists but API currently uses in-memory storage
+- Authentication is not implemented
+- Authorization is not implemented
+- Customer/provider/admin identity system is not implemented
+- Chapa is not integrated
+- Provider payouts are not implemented
+- Real matching is not implemented
+- Emergency dispatch is not implemented
+- Chat is not implemented
+- Maps/GPS are not implemented
+- Disputes/reviews are not implemented
+- Automated tests: 0
+- Current UI/API foundation should be preserved and upgraded rather than discarded
+
+The goal is to turn the existing repository into a real production-quality Ethiopian local services marketplace.
+
+==================================================
+CRITICAL EXECUTION RULE
+==================================================
+
+THERE ARE 8 PHASES.
+
+YOU MUST IMPLEMENT THEM IN ORDER.
+
+DO NOT IMPLEMENT MULTIPLE PHASES AT ONCE.
+
+ONLY ONE PHASE MAY BE ACTIVE AT ANY TIME.
+
+After completing each phase:
+
+1. Stop.
+2. Run tests/build/type checks.
+3. Verify the phase end-to-end.
+4. Check for regressions.
+5. Report exactly what was implemented.
+6. Report what remains.
+7. Report any blockers.
+8. Give me a phase completion percentage.
+9. DO NOT start the next phase automatically.
+
+I will explicitly tell you:
+
+"START PHASE 2"
+
+before you proceed to Phase 2.
+
+This rule is mandatory.
+
+==================================================
+GLOBAL RULES
+==================================================
+
+Do not rebuild the application from scratch.
+
+Do not replace the existing stack unless absolutely necessary.
+
+First inspect existing code and reuse what is good.
+
+Do not create fake implementations.
+
+Do not use mock data as a substitute for production functionality.
+
+Do not call a feature "implemented" merely because:
+
+- a UI exists
+- a route exists
+- a database table exists
+- a function exists
+- a button exists
+
+A feature is COMPLETE only when:
+
+UI
+→ API
+→ business logic
+→ database
+→ authorization
+→ error handling
+→ real state changes
+→ tests
+
+are connected.
+
+Never fabricate successful integrations.
+
+Never hard-code business rules that should be configurable.
+
+Never commit secrets.
+
+Never remove working functionality without understanding it.
+
+==================================================
+PHASE 1 — FOUNDATION
+==================================================
+
+GOAL:
+
+Turn the current demo architecture into a real persistent, authenticated marketplace foundation.
+
+Implement ONLY Phase 1.
+
+--------------------------------------------------
+1. DATABASE
+--------------------------------------------------
+
+Connect the API to the existing PostgreSQL/Drizzle schema.
+
+Replace in-memory persistence with real database persistence.
+
+Implement:
+
+- database configuration
+- connection handling
+- migrations
+- schema corrections
+- indexes
+- foreign keys
+- constraints
+- seed data
+
+Do not lose existing useful schema.
+
+Remove dependence on in-memory application state for persistent business data.
+
+Verify that:
+
+server restart
+→ data remains.
+
+--------------------------------------------------
+2. USER SYSTEM
+--------------------------------------------------
+
+Implement:
+
+- registration
+- login
+- logout
+- password hashing
+- password reset architecture
+- session/token handling
+- user profile
+- account status
+
+Use secure authentication appropriate to the existing architecture.
+
+Do NOT implement fake authentication.
+
+--------------------------------------------------
+3. ROLES
+--------------------------------------------------
+
+Implement:
+
+CUSTOMER
+PROVIDER
+ADMIN
+
+IMPORTANT:
+
+A single user must be able to act as BOTH:
+
+CUSTOMER + PROVIDER
+
+Do NOT create two separate accounts.
+
+Implement server-side role/permission checks.
+
+Never trust role information from the frontend.
+
+--------------------------------------------------
+4. AUTHORIZATION
+--------------------------------------------------
+
+Implement ownership protection.
+
+Examples:
+
+Customer A cannot access Customer B's request.
+
+Provider A cannot access Provider B's earnings.
+
+Customer cannot access provider-only operations.
+
+Provider cannot access admin operations.
+
+Normal users cannot access admin APIs.
+
+--------------------------------------------------
+5. USER DATA MODEL
+--------------------------------------------------
+
+Implement/refactor:
+
+users
+roles/permissions
+profiles
+provider profiles where appropriate
+
+Do not create duplicate tables if equivalent structures already exist.
+
+--------------------------------------------------
+6. BASIC CUSTOMER/PROVIDER IDENTITY
+--------------------------------------------------
+
+Implement the foundation for:
+
+Customer mode
+Provider mode
+
+The user should be able to switch between modes.
+
+The backend must know the user's identity and permissions.
+
+--------------------------------------------------
+7. BASIC PROVIDER PROFILE
+--------------------------------------------------
+
+Create persistent provider information:
+
+- services
+- skills
+- experience
+- pricing foundation
+- availability foundation
+- verification status
+
+Do not implement advanced matching yet.
+
+--------------------------------------------------
+8. ADMIN FOUNDATION
+--------------------------------------------------
+
+Create authenticated admin access.
+
+Admin must be able to:
+
+- view users
+- view providers
+- suspend users
+- manage basic roles
+
+All sensitive admin actions must be authorized server-side.
+
+--------------------------------------------------
+9. PHASE 1 TESTS
+--------------------------------------------------
+
+Create automated tests for:
+
+- registration
+- login
+- logout
+- authentication
+- authorization
+- role protection
+- customer ownership
+- provider ownership
+- admin protection
+- database persistence
+
+Test:
+
+Customer A cannot access Customer B's data.
+
+Provider A cannot access Provider B's data.
+
+Normal user cannot access admin endpoint.
+
+Restart server and verify data remains.
+
+--------------------------------------------------
+PHASE 1 COMPLETION REQUIREMENT
+--------------------------------------------------
+
+Do NOT move beyond this phase until:
+
+[ ] PostgreSQL is actually used
+[ ] Data survives restart
+[ ] Registration works
+[ ] Login works
+[ ] Logout works
+[ ] Authentication works
+[ ] Customer identity works
+[ ] Provider identity works
+[ ] Admin identity works
+[ ] One account can be customer + provider
+[ ] Authorization works
+[ ] Ownership checks work
+[ ] Basic provider profile persists
+[ ] Admin access is protected
+[ ] Automated tests exist
+[ ] Tests pass
+[ ] Build passes
+
+STOP HERE.
+
+DO NOT IMPLEMENT PHASE 2.
+
+==================================================
+PHASE 2 — REAL CUSTOMER + PROVIDER MARKETPLACE
+==================================================
+
+Implement ONLY after I explicitly authorize Phase 2.
+
+Build:
+
+CUSTOMER:
+
+- service categories
+- browse services
+- search
+- create request
+- photos
+- location
+- preferred date/time
+- budget
+- request history
+- provider profiles
+- provider ratings display
+- provider availability
+- booking interface
+
+PROVIDER:
+
+- onboarding
+- verification workflow
+- services
+- skills
+- pricing
+- fixed pricing
+- hourly pricing
+- quote pricing foundation
+- service area
+- availability
+- online/offline
+- incoming requests
+- accept/decline
+- active jobs
+- job history
+- earnings foundation
+
+ONE USER CAN BE BOTH.
+
+Create real persistent relationships.
+
+Do not implement advanced matching yet.
+
+TEST EVERYTHING.
+
+STOP.
+
+==================================================
+PHASE 3 — MATCHING + BOOKING ENGINE
+==================================================
+
+Implement ONLY after authorization.
+
+Create real ProviderMatchingService.
+
+Matching considers:
+
+1. service
+2. skill
+3. location
+4. distance
+5. availability
+6. verification
+7. rating
+8. completion rate
+9. cancellation rate
+10. response rate
+11. emergency eligibility
+12. price
+
+Implement:
+
+- request lifecycle
+- matching
+- provider offers
+- quotes
+- booking
+- accept
+- decline
+- provider en route
+- arrived
+- started
+- completed
+- customer confirmation
+- cancellation
+- job history
+
+Every state transition must:
+
+- be authorized
+- persist in database
+- be validated
+- be auditable
+
+No generic unrestricted status PATCH.
+
+TEST the complete lifecycle.
+
+STOP.
+
+==================================================
+PHASE 4 — MONEY + CHAPA
+==================================================
+
+Implement ONLY after authorization.
+
+This is a CRITICAL financial phase.
+
+Create:
+
+PaymentServiceInterface
+
+ChapaPaymentService
+
+WebhookService
+
+PayoutService
+
+Ledger/transaction system
+
+Implement:
+
+- payment initialization
+- Chapa integration
+- server-side verification
+- webhook
+- webhook verification
+- webhook idempotency
+- duplicate payment protection
+- transaction persistence
+- payment states
+- commission
+- customer fees
+- provider earnings
+- refunds
+- payout eligibility
+- provider payout
+- payout history
+- reconciliation
+
+Business flow:
+
+CUSTOMER
+→ CHAPA
+→ PAYMENT VERIFIED
+→ TRANSACTION
+→ PLATFORM COMMISSION
+→ PROVIDER EARNINGS
+→ JOB COMPLETED
+→ PAYOUT ELIGIBLE
+→ PROVIDER PAYOUT
+
+Do NOT claim escrow unless technically and legally supported.
+
+Do not hard-code commission.
+
+Admin must be able to configure:
+
+- percentage commission
+- fixed fee
+- category commission
+- emergency fee
+- customer fee
+
+Use environment variables.
+
+Never commit secrets.
+
+Create mocked gateway tests for development.
+
+Test:
+
+- successful payment
+- failed payment
+- duplicate webhook
+- replay webhook
+- refund
+- commission
+- provider earnings
+- payout
+
+STOP.
+
+==================================================
+PHASE 5 — TRUST + SAFETY + DISPUTES
+==================================================
+
+Implement ONLY after authorization.
+
+Provider verification:
+
+- pending
+- under review
+- verified
+- rejected
+- suspended
+
+Implement:
+
+- reviews
+- ratings
+- duplicate review prevention
+- disputes
+- evidence
+- customer complaints
+- provider complaints
+- refund
+- partial refund
+- payout holds
+- resolution
+- audit logs
+- fraud signals
+- account suspension
+
+Security audit:
+
+- IDOR
+- role escalation
+- payment manipulation
+- price manipulation
+- fake completion
+- fake review
+- webhook replay
+- duplicate submissions
+- file upload abuse
+- rate limiting
+
+STOP.
+
+==================================================
+PHASE 6 — EMERGENCY + MAPS + DISPATCH
+==================================================
+
+Implement ONLY after authorization.
+
+Emergency is NOT just a category.
+
+Create dedicated emergency workflow.
+
+Examples:
+
+- locksmith/locked out
+- plumbing emergency
+- electrical emergency
+- roadside assistance
+- other configurable urgent categories
+
+Emergency flow:
+
+CUSTOMER
+→ EMERGENCY
+→ SAFETY WARNING
+→ LOCATION
+→ EMERGENCY TYPE
+→ ELIGIBLE PROVIDERS
+→ NEAREST PROVIDER
+→ DISPATCH
+→ ACCEPT
+→ ETA
+→ ARRIVAL
+→ SERVICE
+→ COMPLETION
+→ PAYMENT
+
+For immediate danger to life/fire/serious injury:
+
+Clearly direct the user to appropriate emergency authorities first.
+
+Implement:
+
+- GPS
+- maps
+- provider location
+- distance
+- service radius
+- navigation
+- live tracking where appropriate
+- emergency provider opt-in
+- reassignment
+- emergency admin monitoring
+
+Protect location privacy.
+
+STOP.
+
+==================================================
+PHASE 7 — CHAT + NOTIFICATIONS + OFFLINE + LOCALIZATION
+==================================================
+
+Implement ONLY after authorization.
+
+CHAT:
+
+- job-specific conversations
+- persistent messages
+- real-time or reliable polling
+- read status
+- image messages
+- report/block
+- authorization
+
+NOTIFICATIONS:
+
+- new request
+- booking
+- acceptance
+- arrival
+- completion
+- payment
+- payout
+- dispute
+- emergency
+- messages
+
+Support architecture for:
+
+- push
+- SMS
+- email
+- in-app
+
+OFFLINE/POOR NETWORK:
+
+- retry
+- request deduplication
+- form persistence
+- safe queued actions
+- connection state
+
+LOCALIZATION:
+
+- ETB
+- Ethiopian phone formats
+- English
+- Amharic-ready architecture
+- translation files
+- Ethiopian location/address support
+
+STOP.
+
+==================================================
+PHASE 8 — FINAL PRODUCTIONIZATION
+==================================================
+
+Implement ONLY after authorization.
+
+Perform complete:
+
+UI/UX redesign audit.
+
+Improve:
+
+- mobile usability
+- navigation
+- forms
+- loading
+- empty states
+- errors
+- accessibility
+- responsive layouts
+- performance
+- image optimization
+- caching
+- pagination
+- API optimization
+
+Create comprehensive automated testing:
+
+- unit
+- integration
+- API
+- authorization
+- payment
+- webhook
+- customer
+- provider
+- admin
+- emergency
+- dispute
+- end-to-end
+
+Create deployment configuration.
+
+Implement:
+
+- production environment
+- logging
+- monitoring
+- health checks
+- queues
+- scheduler
+- backups/documentation
+- security configuration
+
+Update README.
+
+Remove:
+
+- dead code
+- fake data
+- demo controls
+- temporary bypasses
+- unnecessary dependencies
+- placeholder implementations
+
+STOP.
+
+==================================================
+AFTER EVERY PHASE
+==================================================
+
+You MUST provide this report:
+
+PHASE:
+STATUS:
+
+Implemented:
+- ...
+
+Not implemented:
+- ...
+
+Partially implemented:
+- ...
+
+Files changed:
+- ...
+
+Database changes:
+- ...
+
+API changes:
+- ...
+
+UI changes:
+- ...
+
+Tests added:
+- ...
+
+Tests passed:
+- ...
+
+Tests failed:
+- ...
+
+Build:
+PASS/FAIL
+
+Security issues:
+- ...
+
+Known limitations:
+- ...
+
+Actual phase completion:
+XX%
+
+Overall REAL project completion:
+XX%
+
+Production readiness:
+XX%
+
+CRITICAL BLOCKERS:
+- ...
+
+DO NOT START THE NEXT PHASE.
+
+==================================================
+START NOW
+==================================================
+
+Start ONLY with PHASE 1.
+
+First inspect the existing repository again.
+
+Then implement Phase 1.
+
+Do not touch Phase 2+ functionality unless required to prevent breaking existing code.
+
+When Phase 1 is genuinely complete and verified, STOP and report the results.
+
+Wait for my explicit instruction before beginning Phase 2.

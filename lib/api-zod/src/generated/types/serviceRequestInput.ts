@@ -12,4 +12,7 @@ export interface ServiceRequestInput {
   description: string;
   address: string;
   urgency?: string;
+  preferredAt?: string;
+  budget?: number;
+  problemPhotos?: string[];
 }

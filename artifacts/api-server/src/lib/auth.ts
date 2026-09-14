@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID, scrypt as nodeScrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { db } from "@workspace/db";
 import {
   passwordResetTokensTable,
@@ -14,6 +14,9 @@ import {
 const scrypt = promisify(nodeScrypt);
 const SESSION_COOKIE = "melse_session";
 const SESSION_DAYS = 30;
+const MAX_FAILED_LOGIN_ATTEMPTS = 5;
+const FAILED_LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const failedLoginAttempts = new Map<string, { count: number; firstAttemptAt: number }>();
 
 export type UserRole = "CUSTOMER" | "PROVIDER" | "ADMIN";
 export type AuthUser = Omit<User, "passwordHash"> & { roles: UserRole[] };
@@ -72,7 +75,11 @@ export async function registerUser(input: { phoneNumber: string; fullName: strin
 export async function authenticateUser(phoneInput: string, password: string) {
   const phoneNumber = normalizePhone(phoneInput);
   const [user] = await db.select().from(usersTable).where(eq(usersTable.phoneNumber, phoneNumber)).limit(1);
-  if (!user || !user.isActive || !(await verifyPassword(password, user.passwordHash))) throw new Error("Invalid phone number or password.");
+  if (!user || !user.isActive || !(await verifyPassword(password, user.passwordHash))) {
+    recordFailedLoginAttempt(phoneNumber);
+    throw new Error("Invalid phone number or password.");
+  }
+  clearFailedLoginAttempt(phoneNumber);
   return publicUser(user);
 }
 
@@ -95,7 +102,7 @@ export async function userFromSession(rawToken: string | undefined) {
   return user ? publicUser(user) : undefined;
 }
 
-export async function activateProvider(userId: string, input: { bio?: string; experienceYears?: number; serviceArea?: string; hourlyRate?: string }) {
+export async function activateProvider(userId: string, input: { bio?: string; experienceYears?: number; serviceArea?: string; hourlyRate?: string; pricingType?: "FIXED" | "HOURLY" | "QUOTE"; serviceRadiusKm?: number; emergencyEligible?: boolean; latitude?: number; longitude?: number }) {
   return db.transaction(async (tx) => {
     await tx.insert(userRolesTable).values({ userId, role: "PROVIDER" }).onConflictDoNothing();
     const profileValues = {
@@ -104,6 +111,11 @@ export async function activateProvider(userId: string, input: { bio?: string; ex
       experienceYears: input.experienceYears ?? 0,
       serviceArea: input.serviceArea,
       hourlyRate: input.hourlyRate,
+      pricingType: input.pricingType ?? "QUOTE",
+      serviceRadiusKm: input.serviceRadiusKm ?? 25,
+      emergencyEligible: input.emergencyEligible ?? false,
+      currentLatitude: input.latitude === undefined ? undefined : String(input.latitude),
+      currentLongitude: input.longitude === undefined ? undefined : String(input.longitude),
       verificationStatus: "VERIFIED" as const,
       isAvailable: true,
     };
@@ -116,6 +128,11 @@ export async function activateProvider(userId: string, input: { bio?: string; ex
           experienceYears: input.experienceYears ?? 0,
           serviceArea: input.serviceArea,
           hourlyRate: input.hourlyRate,
+          pricingType: input.pricingType ?? "QUOTE",
+          serviceRadiusKm: input.serviceRadiusKm ?? 25,
+          emergencyEligible: input.emergencyEligible ?? false,
+          currentLatitude: input.latitude === undefined ? undefined : String(input.latitude),
+          currentLongitude: input.longitude === undefined ? undefined : String(input.longitude),
           verificationStatus: "VERIFIED",
           isAvailable: true,
         },

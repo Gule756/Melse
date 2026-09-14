@@ -320,7 +320,10 @@ export const CreateServiceRequestBody = zod.object({
   "problem": zod.string(),
   "description": zod.string(),
   "address": zod.string(),
-  "urgency": zod.string().optional()
+  "urgency": zod.string().optional(),
+  "preferredAt": zod.string().optional(),
+  "budget": zod.number().optional(),
+  "problemPhotos": zod.array(zod.string()).optional()
 })
 
 export const CreateServiceRequestResponse = zod.object({
@@ -328,7 +331,10 @@ export const CreateServiceRequestResponse = zod.object({
   "problem": zod.string(),
   "description": zod.string(),
   "address": zod.string(),
-  "urgency": zod.string().optional()
+  "urgency": zod.string().optional(),
+  "preferredAt": zod.string().optional(),
+  "budget": zod.number().optional(),
+  "problemPhotos": zod.array(zod.string()).optional()
 }).and(zod.object({
   "id": zod.string(),
   "createdAt": zod.string(),
@@ -346,7 +352,10 @@ export const ListServiceRequestsResponseItem = zod.object({
   "problem": zod.string(),
   "description": zod.string(),
   "address": zod.string(),
-  "urgency": zod.string().optional()
+  "urgency": zod.string().optional(),
+  "preferredAt": zod.string().optional(),
+  "budget": zod.number().optional(),
+  "problemPhotos": zod.array(zod.string()).optional()
 }).and(zod.object({
   "id": zod.string(),
   "createdAt": zod.string(),
@@ -454,7 +463,10 @@ export const GetDashboardSummaryResponse = zod.object({
   "problem": zod.string(),
   "description": zod.string(),
   "address": zod.string(),
-  "urgency": zod.string().optional()
+  "urgency": zod.string().optional(),
+  "preferredAt": zod.string().optional(),
+  "budget": zod.number().optional(),
+  "problemPhotos": zod.array(zod.string()).optional()
 }).and(zod.object({
   "id": zod.string(),
   "createdAt": zod.string(),
@@ -473,7 +485,10 @@ export const GetServiceHistoryResponseItem = zod.object({
   "problem": zod.string(),
   "description": zod.string(),
   "address": zod.string(),
-  "urgency": zod.string().optional()
+  "urgency": zod.string().optional(),
+  "preferredAt": zod.string().optional(),
+  "budget": zod.number().optional(),
+  "problemPhotos": zod.array(zod.string()).optional()
 }).and(zod.object({
   "id": zod.string(),
   "createdAt": zod.string(),
@@ -482,6 +497,18 @@ export const GetServiceHistoryResponseItem = zod.object({
   "arrival": zod.string()
 }))
 export const GetServiceHistoryResponse = zod.array(GetServiceHistoryResponseItem)
+
+
+/**
+ * @summary List jobs assigned to the authenticated provider
+ */
+export const ListProviderJobsResponse = zod.unknown()
+
+
+/**
+ * @summary Get completed provider earnings
+ */
+export const GetProviderEarningsResponse = zod.unknown()
 
 
 /**

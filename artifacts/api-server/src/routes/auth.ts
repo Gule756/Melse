@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Response } from "express";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { db, businessAccountsTable, technicianProfilesTable, userRolesTable, usersTable } from "@workspace/db";
+import { db, businessAccountsTable, technicianProfilesTable, technicianSkillsTable, serviceCategoriesTable, userRolesTable, usersTable } from "@workspace/db";
 import {
   activateProvider,
   authenticateUser,
@@ -17,7 +17,7 @@ import { currentUser, requireAuth, requireRole } from "../middlewares/auth";
 
 const router: IRouter = Router();
 const credentials = z.object({ phoneNumber: z.string().min(9), password: z.string().min(1) });
-const providerProfile = z.object({ bio: z.string().max(2000).optional(), experienceYears: z.number().int().min(0).max(80).optional(), serviceArea: z.string().max(120).optional(), hourlyRate: z.string().regex(/^\d+(\.\d{1,2})?$/).optional() });
+const providerProfile = z.object({ bio: z.string().max(2000).optional(), experienceYears: z.number().int().min(0).max(80).optional(), serviceArea: z.string().max(120).optional(), hourlyRate: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(), pricingType: z.enum(["FIXED", "HOURLY", "QUOTE"]).optional(), categorySlugs: z.array(z.string().min(1)).max(20).optional(), serviceRadiusKm: z.number().int().positive().max(200).optional(), emergencyEligible: z.boolean().optional(), latitude: z.number().min(-90).max(90).optional(), longitude: z.number().min(-180).max(180).optional() });
 
 function setSessionCookie(res: Response, token: string, expiresAt: Date) {
   const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
@@ -133,6 +133,17 @@ router.post("/admin/bootstrap", async (req, res) => {
 
 router.get("/auth/me", requireAuth, (req, res) => res.json({ user: currentUser(req) }));
 
+router.patch("/auth/mode", requireAuth, async (req, res, next) => {
+  const parsed = z.object({ mode: z.enum(["CUSTOMER", "PROVIDER"]) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Choose a valid account mode." });
+  const user = currentUser(req)!;
+  if (!user.roles.includes(parsed.data.mode)) return res.status(403).json({ error: "Activate that account mode before switching." });
+  try {
+    const [updated] = await db.update(usersTable).set({ activeMode: parsed.data.mode, updatedAt: new Date() }).where(eq(usersTable.id, user.id)).returning();
+    return updated ? res.json({ ...updated, passwordHash: undefined, roles: user.roles }) : res.status(404).json({ error: "User not found." });
+  } catch (error) { return next(error); }
+});
+
 router.patch("/auth/profile", requireAuth, async (req, res, next) => {
   const parsed = z.object({ fullName: z.string().trim().min(2).max(100), avatarUrl: z.string().url().optional() }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid profile details." });
@@ -148,7 +159,13 @@ router.post("/provider/activate", requireAuth, async (req, res, next) => {
   const parsed = providerProfile.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid provider profile." });
   try {
-    return res.status(201).json(await activateProvider(currentUser(req)!.id, parsed.data));
+    const profile = await activateProvider(currentUser(req)!.id, parsed.data);
+    if (profile && parsed.data.categorySlugs?.length) {
+      const categories = await db.select({ id: serviceCategoriesTable.id, slug: serviceCategoriesTable.slug }).from(serviceCategoriesTable);
+      const categoryIds = categories.filter((category) => parsed.data.categorySlugs!.includes(category.slug)).map((category) => category.id);
+      if (categoryIds.length) await db.insert(technicianSkillsTable).values(categoryIds.map((categoryId) => ({ technicianId: profile.id, categoryId }))).onConflictDoNothing();
+    }
+    return res.status(201).json(profile);
   } catch (error) {
     return next(error);
   }

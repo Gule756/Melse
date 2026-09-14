@@ -15,6 +15,7 @@ import {
 import { z } from "zod/v4";
 
 export const userRoleEnum = pgEnum("user_role", ["CUSTOMER", "PROVIDER", "ADMIN", "BUSINESS"]);
+export const userModeEnum = pgEnum("user_mode", ["CUSTOMER", "PROVIDER"]);
 export const verificationStatusEnum = pgEnum("verification_status", ["PENDING", "UNDER_REVIEW", "VERIFIED", "SUSPENDED", "REJECTED"]);
 export const jobStatusEnum = pgEnum("job_status", ["REQUESTED", "SEARCHING", "ASSIGNED", "ACCEPTED", "TECHNICIAN_EN_ROUTE", "ARRIVED", "IN_PROGRESS", "COMPLETED", "CUSTOMER_CONFIRMED", "PAID", "RATED", "CANCELLED", "DISPUTED", "REFUNDED", "REASSIGNED"]);
 export const paymentStatusEnum = pgEnum("payment_status", ["PENDING", "PROCESSING", "COMPLETED", "FAILED", "REFUNDED"]);
@@ -25,6 +26,7 @@ export const usersTable = pgTable("users", {
   fullName: varchar("full_name", { length: 100 }).notNull(),
   passwordHash: text("password_hash").notNull(),
   role: userRoleEnum("role").default("CUSTOMER").notNull(),
+  activeMode: userModeEnum("active_mode").default("CUSTOMER").notNull(),
   avatarUrl: text("avatar_url"),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -159,6 +161,12 @@ export const technicianProfilesTable = pgTable("technician_profiles", {
   experienceYears: integer("experience_years").default(0).notNull(),
   bio: text("bio"),
   hourlyRate: decimal("hourly_rate", { precision: 10, scale: 2 }),
+  pricingType: varchar("pricing_type", { length: 20 }).default("QUOTE").notNull(),
+  serviceRadiusKm: integer("service_radius_km").default(25).notNull(),
+  completionRate: decimal("completion_rate", { precision: 5, scale: 4 }).default("1").notNull(),
+  cancellationRate: decimal("cancellation_rate", { precision: 5, scale: 4 }).default("0").notNull(),
+  responseRate: decimal("response_rate", { precision: 5, scale: 4 }).default("1").notNull(),
+  emergencyEligible: boolean("emergency_eligible").default(false).notNull(),
   serviceArea: varchar("service_area", { length: 120 }),
   ratingAvg: decimal("rating_avg", { precision: 3, scale: 2 }).default("5").notNull(),
   ratingCount: integer("rating_count").default(0).notNull(),
@@ -193,6 +201,8 @@ export const serviceRequestsTable = pgTable("service_requests", {
   problemDescription: text("problem_description").notNull(),
   address: text("address").notNull(),
   problemPhotos: text("problem_photos").array(),
+  preferredAt: timestamp("preferred_at", { withTimezone: true }),
+  budget: decimal("budget", { precision: 10, scale: 2 }),
   latitude: decimal("latitude", { precision: 10, scale: 8 }).notNull(),
   longitude: decimal("longitude", { precision: 11, scale: 8 }).notNull(),
   estimatedPriceMin: decimal("estimated_price_min", { precision: 10, scale: 2 }).notNull(),
@@ -229,6 +239,16 @@ export const bookingStatusHistoryTable = pgTable("booking_status_history", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const providerOffersTable = pgTable("provider_offers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  requestId: uuid("request_id").references(() => serviceRequestsTable.id, { onDelete: "cascade" }).notNull(),
+  technicianId: uuid("technician_id").references(() => technicianProfilesTable.id, { onDelete: "cascade" }).notNull(),
+  status: varchar("status", { length: 20 }).default("PENDING").notNull(),
+  quotedPrice: decimal("quoted_price", { precision: 10, scale: 2 }),
+  respondedAt: timestamp("responded_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({ offerUnique: uniqueIndex("provider_offers_request_technician_unique").on(table.requestId, table.technicianId) }));
+
 export const paymentsTable = pgTable("payments", {
   id: uuid("id").defaultRandom().primaryKey(),
   bookingId: uuid("booking_id").references(() => bookingsTable.id, { onDelete: "restrict" }).unique().notNull(),
@@ -239,6 +259,33 @@ export const paymentsTable = pgTable("payments", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const ledgerEntriesTable = pgTable("ledger_entries", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  bookingId: uuid("booking_id").references(() => bookingsTable.id, { onDelete: "restrict" }).notNull(),
+  paymentId: uuid("payment_id").references(() => paymentsTable.id, { onDelete: "restrict" }),
+  entryType: varchar("entry_type", { length: 30 }).notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 3 }).default("ETB").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const payoutsTable = pgTable("payouts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  technicianId: uuid("technician_id").references(() => technicianProfilesTable.id, { onDelete: "restrict" }).notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  status: varchar("status", { length: 20 }).default("ELIGIBLE").notNull(),
+  providerReference: varchar("provider_reference", { length: 120 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const webhookEventsTable = pgTable("webhook_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  eventId: varchar("event_id", { length: 160 }).unique().notNull(),
+  provider: varchar("provider", { length: 40 }).notNull(),
+  payload: text("payload").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const reviewsTable = pgTable("reviews", {
   id: uuid("id").defaultRandom().primaryKey(),
   bookingId: uuid("booking_id").references(() => bookingsTable.id, { onDelete: "cascade" }).unique().notNull(),
@@ -246,6 +293,36 @@ export const reviewsTable = pgTable("reviews", {
   technicianId: uuid("technician_id").references(() => technicianProfilesTable.id).notNull(),
   rating: integer("rating").notNull(),
   comment: text("comment"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const disputesTable = pgTable("disputes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  bookingId: uuid("booking_id").references(() => bookingsTable.id, { onDelete: "cascade" }).notNull(),
+  openedBy: uuid("opened_by").references(() => usersTable.id, { onDelete: "restrict" }).notNull(),
+  reason: text("reason").notNull(),
+  status: varchar("status", { length: 20 }).default("OPEN").notNull(),
+  resolution: text("resolution"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+});
+
+export const disputeEvidenceTable = pgTable("dispute_evidence", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  disputeId: uuid("dispute_id").references(() => disputesTable.id, { onDelete: "cascade" }).notNull(),
+  submittedBy: uuid("submitted_by").references(() => usersTable.id, { onDelete: "restrict" }).notNull(),
+  evidenceUrl: text("evidence_url").notNull(),
+  note: text("note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const auditLogsTable = pgTable("audit_logs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  actorId: uuid("actor_id").references(() => usersTable.id, { onDelete: "set null" }),
+  action: varchar("action", { length: 100 }).notNull(),
+  entityType: varchar("entity_type", { length: 50 }).notNull(),
+  entityId: uuid("entity_id"),
+  metadata: text("metadata"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

@@ -444,6 +444,20 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/ServiceRequest"
+  /provider/jobs:
+    get:
+      operationId: listProviderJobs
+      tags: [bookings]
+      summary: List jobs assigned to the authenticated provider
+      responses:
+        "200": { description: Provider jobs }
+  /provider/earnings:
+    get:
+      operationId: getProviderEarnings
+      tags: [bookings]
+      summary: Get completed provider earnings
+      responses:
+        "200": { description: Provider earnings }
   /notifications:
     get:
       operationId: listNotifications
@@ -536,6 +550,11 @@ components:
         description: { type: string }
         address: { type: string }
         urgency: { type: string }
+        preferredAt: { type: string }
+        budget: { type: number }
+        problemPhotos:
+          type: array
+          items: { type: string }
     BusinessRegistrationInput:
       type: object
       required: [phoneNumber, password, fullName, businessName]
