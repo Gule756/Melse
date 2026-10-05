@@ -23,8 +23,6 @@ import {
   Settings2,
   ShieldCheck,
   Star,
-  Sun,
-  Moon,
   Languages,
   ToolCase,
   UserRound,
@@ -74,9 +72,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 type Language = 'en' | 'am';
-type Theme = 'light' | 'dark';
 const languageContext = createContext<{ language: Language; setLanguage: (language: Language) => void }>({ language: 'en', setLanguage: () => undefined });
-const themeContext = createContext<{ theme: Theme; setTheme: (theme: Theme) => void }>({ theme: 'light', setTheme: () => undefined });
 type MarketplaceMode = 'customer' | 'provider' | 'admin';
 type SessionUser = { id: string; fullName: string; phoneNumber: string; roles: string[]; activeMode: Uppercase<MarketplaceMode> };
 const authContext = createContext<{ user: SessionUser; updateUser: (user: SessionUser) => void } | null>(null);
@@ -114,7 +110,6 @@ const translations: Record<string, string> = {
   'No messages yet': 'እስካሁን መልዕክት የለም', 'Contact support': 'ድጋፍን ያግኙ', 'No one is available right now': 'አሁን ማንም አይገኝም',
 };
 const useLanguage = () => useContext(languageContext);
-const useTheme = () => useContext(themeContext);
 const localized = (value: string, language: Language) => language === 'am' ? translations[value] ?? value : value;
 
 const money = (value: number) => `ETB ${new Intl.NumberFormat('en-US').format(value)}`;
@@ -133,11 +128,11 @@ const normalizeSearchText = (value: string) => value
   .replace(/\s+/g, ' ');
 
 const launchServices: LaunchService[] = [
-  { slug: 'appliance-repair', name: 'Appliance Repair', description: 'Fridges, cookers, washers', icon: Refrigerator, color: 'bg-[#f2e9db]' },
-  { slug: 'electrician', name: 'Electrician', description: 'Power, lights, sockets', icon: Zap, color: 'bg-[#f8e4c9]' },
-  { slug: 'plumber', name: 'Plumbing', description: 'Leaks, drains, fixtures', icon: Droplets, color: 'bg-[#ddebe9]' },
-  { slug: 'ac-refrigeration', name: 'AC & Refrigeration', description: 'Cooling that works again', icon: Settings2, color: 'bg-[#e5e5ef]' },
-  { slug: 'cleaning', name: 'Cleaning', description: 'A home reset, done well', icon: Sparkles, color: 'bg-[#f0e5e0]' },
+  { slug: 'appliance-repair', name: 'Appliance Repair', description: 'Fridges, cookers, washers', icon: Refrigerator, color: 'bg-primary/5' },
+  { slug: 'electrician', name: 'Electrician', description: 'Power, lights, sockets', icon: Zap, color: 'bg-primary/5' },
+  { slug: 'plumber', name: 'Plumbing', description: 'Leaks, drains, fixtures', icon: Droplets, color: 'bg-primary/5' },
+  { slug: 'ac-refrigeration', name: 'AC & Refrigeration', description: 'Cooling that works again', icon: Settings2, color: 'bg-primary/5' },
+  { slug: 'cleaning', name: 'Cleaning', description: 'A home reset, done well', icon: Sparkles, color: 'bg-primary/5' },
 ];
 
 const issueSets: Record<string, string[]> = {
@@ -268,14 +263,13 @@ function Shell({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const { language, setLanguage } = useLanguage();
-  const { theme, setTheme } = useTheme();
   const activeNav = customerNav.find((item) => item.href === location || (item.href !== '/' && location.startsWith(item.href)));
   return <div className="noise min-h-[100dvh] bg-background text-foreground">
     <div className="mx-auto max-w-[1240px]">
       <header className="sticky top-0 z-20 flex h-[68px] items-center justify-between border-b border-border/75 bg-background/95 px-4 backdrop-blur-sm md:px-9">
         <div className="flex items-center gap-3"><Mark /></div>
         <div className="hidden items-center gap-2 md:flex"><MapPin size={14} className="text-primary" /><span className="text-sm font-medium">Addis Ababa</span><span className="text-xs text-muted-foreground">· local desk</span></div>
-        <div className="flex items-center gap-2"><button onClick={() => setLanguage(language === 'en' ? 'am' : 'en')} aria-label="Change language" data-testid="button-language" className="inline-flex h-9 items-center gap-1.5 rounded-full border border-border bg-card px-3 text-xs font-bold text-muted-foreground transition hover:border-primary hover:text-primary"><Languages size={15} /> {language === 'en' ? 'አማ' : 'EN'}</button><button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} aria-label="Change color theme" data-testid="button-theme" className="grid size-9 place-items-center rounded-full border border-border bg-card text-muted-foreground transition hover:border-primary hover:text-primary">{theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}</button><button onClick={() => window.alert('You are all caught up.')} data-testid="button-notifications" className="grid size-9 place-items-center rounded-full border border-border bg-card text-muted-foreground transition hover:border-primary hover:text-primary"><Bell size={17} /></button><button data-testid="button-mobile-menu" onClick={() => setMenuOpen(!menuOpen)} className="grid size-9 place-items-center rounded-full border border-border bg-card md:hidden">{menuOpen ? <X size={17} /> : <Menu size={17} />}</button></div>
+        <div className="flex items-center gap-2"><button onClick={() => setLanguage(language === 'en' ? 'am' : 'en')} aria-label="Change language" data-testid="button-language" className="inline-flex h-9 items-center gap-1.5 rounded-full border border-border bg-card px-3 text-xs font-bold text-muted-foreground transition hover:border-primary hover:text-primary"><Languages size={15} /> {language === 'en' ? 'አማ' : 'EN'}</button><button onClick={() => window.alert('You are all caught up.')} data-testid="button-notifications" className="grid size-9 place-items-center rounded-full border border-border bg-card text-muted-foreground transition hover:border-primary hover:text-primary"><Bell size={17} /></button><button data-testid="button-mobile-menu" onClick={() => setMenuOpen(!menuOpen)} className="grid size-9 place-items-center rounded-full border border-border bg-card md:hidden">{menuOpen ? <X size={17} /> : <Menu size={17} />}</button></div>
       </header>
       {menuOpen && <div className="absolute right-4 top-[60px] z-30 w-56 rounded-xl border border-border bg-card p-2 shadow-lg md:hidden">{customerNav.map(({ href, label, icon: NavIcon }) => <Link key={href} onClick={() => setMenuOpen(false)} href={href} data-testid={`link-mobile-${label.toLowerCase().replaceAll(' ', '-')}`} className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm hover:bg-secondary"><NavIcon size={16} />{localized(label, language)}</Link>)}</div>}
       <main className="page-in mx-auto max-w-[1240px] px-4 pb-28 pt-7 md:px-9 md:pb-10 md:pt-9">{children}</main>
@@ -1249,18 +1243,12 @@ return <ErrorBoundary resetKey={location}><Switch><Route path="/auth" component=
 
 function App() {
   const [language, setLanguage] = useState<Language>(() => (localStorage.getItem('melse-language') as Language) || 'en');
-  const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('melse-theme') as Theme) || 'light');
 
   useEffect(() => {
     localStorage.setItem('melse-language', language);
   }, [language]);
 
-  useEffect(() => {
-    localStorage.setItem('melse-theme', theme);
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-  }, [theme]);
-
-  return <languageContext.Provider value={{ language, setLanguage }}><themeContext.Provider value={{ theme, setTheme }}><QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Router /></WouterRouter><Toaster /></TooltipProvider></QueryClientProvider></themeContext.Provider></languageContext.Provider>;
+  return <languageContext.Provider value={{ language, setLanguage }}><QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Router /></WouterRouter><Toaster /></TooltipProvider></QueryClientProvider></languageContext.Provider>;
 }
 
 export default App;
