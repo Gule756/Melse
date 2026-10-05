@@ -1,5 +1,4 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import taxonomyCsv from '../../../melse_service_taxonomy_1100_plus.csv?raw';
 import {
   ArrowRight,
   BadgeCheck,
@@ -38,7 +37,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Link, Route, Router as WouterRouter, Switch, useLocation, useParams } from 'wouter';
-import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   BookingStatusInputStatus,
   getGetBookingQueryKey,
@@ -60,10 +59,33 @@ import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
 
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`/api${path}`, {
+    credentials: 'same-origin',
+    ...init,
+    headers: { ...(init?.body ? { 'content-type': 'application/json' } : {}), ...init?.headers },
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({})) as { error?: string };
+    throw new Error(payload.error || `Request failed (${response.status}).`);
+  }
+  if (response.status === 204) return undefined as T;
+  return await response.json() as T;
+}
+
 type Language = 'en' | 'am';
 type Theme = 'light' | 'dark';
 const languageContext = createContext<{ language: Language; setLanguage: (language: Language) => void }>({ language: 'en', setLanguage: () => undefined });
 const themeContext = createContext<{ theme: Theme; setTheme: (theme: Theme) => void }>({ theme: 'light', setTheme: () => undefined });
+type MarketplaceMode = 'customer' | 'provider' | 'admin';
+type SessionUser = { id: string; fullName: string; phoneNumber: string; roles: string[]; activeMode: Uppercase<MarketplaceMode> };
+const authContext = createContext<{ user: SessionUser; updateUser: (user: SessionUser) => void } | null>(null);
+
+function useAuth() {
+  const value = useContext(authContext);
+  if (!value) throw new Error('Authentication context is unavailable.');
+  return value;
+}
 
 const translations: Record<string, string> = {
   'Home': 'መነሻ', 'My Jobs': 'ስራዎቼ', 'Messages': 'መልዕክቶች', 'Profile': 'መገለጫ',
@@ -103,106 +125,12 @@ const titleCase = (value?: string) => value?.toLowerCase().replaceAll('_', ' ').
 
 type LaunchService = { slug: string; name: string; description: string; icon: LucideIcon; color: string };
 
-type TaxonomyRow = {
-  serviceId: string;
-  categoryEn: string;
-  categoryAm: string;
-  serviceEn: string;
-  serviceAm: string;
-  searchBehavior: string;
-  uiVisibility: string;
-};
-
 const normalizeSearchText = (value: string) => value
   .toLowerCase()
   .trim()
   .replace(/[_/\-]+/g, ' ')
   .replace(/[^a-z0-9\u1200-\u137f\s]/g, ' ')
   .replace(/\s+/g, ' ');
-
-const catalogIconByCategory: Record<string, LucideIcon> = {
-  Plumbing: Droplets,
-  Electrical: Zap,
-  'Appliance Repair': Refrigerator,
-  'AC & Refrigeration': Settings2,
-  Cleaning: Sparkles,
-  'Construction & Masonry': Wrench,
-  'Painting & Finishing': Sparkles,
-  'Carpentry & Furniture': ToolCase,
-  'Metalwork & Welding': ToolCase,
-  'Glass & Aluminum': Wrench,
-  Roofing: ShieldCheck,
-  'Solar & Renewable Energy': Zap,
-  'Generators & Power Backup': Settings2,
-  'Security & Smart Home': ShieldCheck,
-  'Internet & Networking': MessageCircle,
-  'Computers & IT': ToolCase,
-  'Mobile Phones & Electronics': Wrench,
-  'Vehicle — Cars': Car,
-  'Vehicle — Motorcycles': Car,
-  'Vehicle — Commercial & Heavy': Car,
-};
-
-const taxonomyRows: TaxonomyRow[] = taxonomyCsv
-  .split(/\r?\n/)
-  .slice(1)
-  .filter(Boolean)
-  .map((line) => {
-    const values = line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/);
-    const [serviceId = '', categoryEn = '', categoryAm = '', serviceEn = '', serviceAm = '', searchBehavior = '', uiVisibility = ''] = values;
-    return { serviceId, categoryEn, categoryAm, serviceEn, serviceAm, searchBehavior, uiVisibility };
-  })
-  .filter((row) => row.serviceEn && row.categoryEn);
-
-const serviceNameAmharic: Record<string, string> = {
-  'Fix leaking faucet': 'የሚያፈስ ቧንቧ ጥገና',
-  'Fix leaking pipe': 'የሚያፈስ የውሃ ቧንቧ ጥገና',
-  'Fix burst pipe': 'የተበረጠ የውሃ ቧንቧ ጥገና',
-  'Unclog sink': 'የተዘጋ ማጠቢያ መክፈት',
-  'Unclog toilet': 'የተዘጋ መጸዳጃ ቤት መክፈት',
-  'Unclog shower drain': 'የተዘጋ የሻወር መውረጃ መክፈት',
-  'Repair toilet': 'መጸዳጃ ቤት መጠገን',
-  'Install toilet': 'መጸዳጃ ቤት መትከል',
-  'Replace toilet seat': 'የመጸዳጃ ቤት መቀመጫ መተካት',
-  'Repair water heater': 'የውሃ ማሞቂያ መጠገን',
-  'Install water heater': 'የውሃ ማሞቂያ መትከል',
-  'Repair water pump': 'የውሃ ፓምፕ መጠገን',
-  'Install water pump': 'የውሃ ፓምፕ መትከል',
-  'Repair pressure pump': 'የግፊት ፓምፕ መጠገን',
-  'Install pressure pump': 'የግፊት ፓምፕ መትከል',
-  'Repair water tank': 'የውሃ ገንዳ መጠገን',
-  'Install water tank': 'የውሃ ገንዳ መትከል',
-  'Clean water tank': 'የውሃ ገንዳ ማጽዳት',
-  'Install kitchen sink': 'የኩሽና ማጠቢያ መትከል',
-  'Repair kitchen sink': 'የኩሽና ማጠቢያ መጠገን',
-  'Install bathroom sink': 'የመታጠቢያ ቤት ማጠቢያ መትከል',
-  'Repair bathroom sink': 'የመታጠቢያ ቤት ማጠቢያ መጠገን',
-  'Install shower': 'ሻወር መትከል',
-};
-
-const taxonomyServiceCatalog = taxonomyRows.map((row, index) => {
-  const baseName = row.serviceEn.trim();
-  const slug = baseName
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || `service-${index + 1}`;
-
-  const amharicName = row.serviceAm?.trim() || serviceNameAmharic[baseName] || baseName;
-
-  return {
-    slug,
-    name: baseName,
-    category: row.categoryEn,
-    categoryAm: row.categoryAm,
-    nameAm: amharicName,
-    description: `${row.categoryEn} • ${baseName}`,
-    icon: catalogIconByCategory[row.categoryEn] ?? Wrench,
-  };
-});
-
-const catalogLabel = (service: { name: string; nameAm: string }, language: Language) => language === 'am'
-  ? service.nameAm
-  : service.name;
 
 const launchServices: LaunchService[] = [
   { slug: 'appliance-repair', name: 'Appliance Repair', description: 'Fridges, cookers, washers', icon: Refrigerator, color: 'bg-[#f2e9db]' },
@@ -211,15 +139,6 @@ const launchServices: LaunchService[] = [
   { slug: 'ac-refrigeration', name: 'AC & Refrigeration', description: 'Cooling that works again', icon: Settings2, color: 'bg-[#e5e5ef]' },
   { slug: 'cleaning', name: 'Cleaning', description: 'A home reset, done well', icon: Sparkles, color: 'bg-[#f0e5e0]' },
 ];
-
-const fullServices: Array<{ slug: string; name: string; nameAm: string; categoryAm: string; description: string; icon: LucideIcon }> = taxonomyServiceCatalog.map((service) => ({
-  slug: service.slug,
-  name: service.name,
-  nameAm: service.nameAm,
-  categoryAm: service.categoryAm,
-  description: service.category,
-  icon: service.icon,
-}));
 
 const issueSets: Record<string, string[]> = {
   'appliance-repair': ['Fridge is not cooling', 'Washing machine problem', 'Cooker or oven issue', 'Something else'],
@@ -327,14 +246,14 @@ const marketplaceModes = [
   { id: 'admin', label: 'Admin', description: 'Operations overview' },
 ] as const;
 
-function ModeSwitcher({ value, onChange }: { value: 'customer' | 'provider' | 'admin'; onChange: (mode: 'customer' | 'provider' | 'admin') => void }) {
+function ModeSwitcher({ value, availableModes, onChange }: { value: MarketplaceMode; availableModes: (typeof marketplaceModes)[number][]; onChange: (mode: MarketplaceMode) => void }) {
   const { language } = useLanguage();
   return <div className="inline-flex w-full max-w-xl rounded-full border border-border bg-card p-1 shadow-sm">
-    {marketplaceModes.map((mode) => (
+    {availableModes.map((mode) => (
       <button
         key={mode.id}
         type="button"
-        onClick={() => onChange(mode.id as 'customer' | 'provider' | 'admin')}
+        onClick={() => onChange(mode.id)}
         data-testid={`button-mode-${mode.id}`}
         className={`flex-1 rounded-full px-3 py-2 text-left transition ${value === mode.id ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-secondary'}`}
       >
@@ -376,6 +295,7 @@ function ServiceCard({ service, actual }: { service: LaunchService; actual?: Ser
 
 function Home() {
   const { language } = useLanguage();
+  const { user, updateUser } = useAuth();
   const services = useListServices();
   const summary = useGetDashboardSummary();
   const requests = useListServiceRequests();
@@ -385,19 +305,43 @@ function Home() {
   const actualFor = (slug: string) => serviceList.find((item) => item.slug === slug || item.name.toLowerCase().replaceAll(' ', '-') === slug);
   const [emergencyOpen, setEmergencyOpen] = useState(false);
   const [searchValue, setSearchValue] = useState('');
-  const [mode, setMode] = useState<'customer' | 'provider' | 'admin'>('customer');
+  const [mode, setMode] = useState<MarketplaceMode>(user.activeMode.toLowerCase() as MarketplaceMode);
+  const [modeError, setModeError] = useState('');
+  const availableModes = marketplaceModes.filter((entry) => user.roles.includes(entry.id.toUpperCase()));
+  useEffect(() => {
+    setMode(user.activeMode.toLowerCase() as MarketplaceMode);
+  }, [user.activeMode]);
+  const changeMode = async (nextMode: MarketplaceMode) => {
+    setModeError('');
+    try {
+      const response = await fetch('/api/auth/mode', {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ mode: nextMode.toUpperCase() }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        setModeError(body.error || 'Could not change account mode.');
+        return;
+      }
+      const body = await response.json();
+      updateUser(body.user);
+      setMode(nextMode);
+    } catch {
+      setModeError('Could not reach Melse to change account mode.');
+    }
+  };
   const searchResults = useMemo(() => {
     const query = normalizeSearchText(searchValue);
     if (!query) return [];
-    return taxonomyServiceCatalog
+    return serviceList
       .map((service) => {
         const name = normalizeSearchText(service.name);
-        const category = normalizeSearchText(service.category);
-        const amharic = normalizeSearchText(service.categoryAm ?? '');
-        const haystack = `${name} ${category} ${amharic}`;
+        const haystack = `${name} ${normalizeSearchText(service.description)}`;
         if (!haystack) return { service, score: Number.NEGATIVE_INFINITY };
         const exact = haystack.includes(query) ? 100 : 0;
-        const startsWith = name.startsWith(query) || category.startsWith(query) ? 60 : 0;
+        const startsWith = name.startsWith(query) ? 60 : 0;
         const tokenMatch = query.split(' ').every((token) => haystack.includes(token)) ? 35 : 0;
         const score = exact + startsWith + tokenMatch;
         return { service, score };
@@ -406,7 +350,7 @@ function Home() {
       .sort((a, b) => b.score - a.score)
       .slice(0, 6)
       .map((entry) => entry.service);
-  }, [searchValue]);
+  }, [searchValue, serviceList]);
 
   const modeContent = {
     customer: {
@@ -432,8 +376,9 @@ function Home() {
   return <div className="space-y-8">
     <section className="rounded-[28px] border border-border bg-gradient-to-br from-primary via-primary to-primary/90 p-5 text-primary-foreground shadow-[0_24px_50px_rgba(13,61,42,0.18)] md:p-8">
       <div className="mb-5 flex justify-center md:justify-start">
-        <ModeSwitcher value={mode} onChange={setMode} />
+        <ModeSwitcher value={mode} availableModes={availableModes} onChange={changeMode} />
       </div>
+      {modeError && <p role="alert" className="mb-4 text-sm text-destructive">{modeError}</p>}
       <div className="grid gap-6 lg:grid-cols-[1.35fr_0.65fr] lg:items-end">
         <div>
           <p className="mono-font text-[10px] uppercase tracking-[.22em] text-accent">Melse marketplace</p>
@@ -485,8 +430,8 @@ function Home() {
             {searchResults.map((service) => (
               <Link key={service.slug} href={`/request/${service.slug}`} className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left hover:bg-secondary">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{catalogLabel(service, language)}</p>
-                  <p className="text-xs text-muted-foreground">{language === 'am' ? service.categoryAm : service.category}</p>
+                  <p className="truncate text-sm font-semibold">{localized(service.name, language)}</p>
+                  <p className="text-xs text-muted-foreground">{localized(service.description, language)}</p>
                 </div>
                 <ArrowRight size={15} className="text-primary" />
               </Link>
@@ -497,7 +442,7 @@ function Home() {
       <button onClick={() => setEmergencyOpen(!emergencyOpen)} data-testid="button-emergency" className={`inline-flex min-h-12 items-center justify-center gap-2 border px-4 text-sm font-bold transition ${emergencyOpen ? 'border-destructive bg-destructive text-destructive-foreground' : 'border-destructive/35 bg-card text-destructive hover:bg-destructive/5'}`}><Zap size={17} /> {localized('Need help now?', language)}</button>
     </section>
 
-    {emergencyOpen && <div className="flex flex-col gap-4 border border-destructive/25 bg-destructive/5 p-4 sm:flex-row sm:items-center sm:justify-between" data-testid="panel-emergency"><div><p className="text-sm font-bold text-destructive">{localized('Need help now?', language)}</p><p className="mt-1 text-xs text-muted-foreground">For immediate danger, contact the relevant emergency authority first. This marketplace is for scheduled and urgent local service requests.</p></div><button onClick={() => document.getElementById('services')?.scrollIntoView({ behavior: 'smooth' })} data-testid="button-emergency-choose" className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 bg-destructive px-4 text-xs font-bold text-destructive-foreground">{localized('Get Help Now', language)} <ArrowRight size={15} /></button></div>}
+    {emergencyOpen && <div className="flex flex-col gap-4 border border-destructive/25 bg-destructive/5 p-4 sm:flex-row sm:items-center sm:justify-between" data-testid="panel-emergency"><div><p className="text-sm font-bold text-destructive">{localized('Need help now?', language)}</p><p className="mt-1 text-xs text-muted-foreground">For immediate danger, contact the relevant emergency authority first. Melse is not an emergency service.</p></div><Link href="/emergency" data-testid="button-emergency-choose" className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 bg-destructive px-4 text-xs font-bold text-destructive-foreground">{localized('Get Help Now', language)} <ArrowRight size={15} /></Link></div>}
 
     {summary.data?.activeBooking && <ActiveBookingCard booking={summary.data.activeBooking} />}
 
@@ -558,7 +503,6 @@ function RequestFlow() {
   const { serviceSlug = '' } = useParams<{ serviceSlug: string }>();
   const { language } = useLanguage();
   const services = useListServices();
-  const create = useCreateServiceRequest();
   const [, setLocation] = useLocation();
   const normalizedServiceSlug = serviceSlug === 'electrical' ? 'electrician' : serviceSlug === 'plumbing' ? 'plumber' : serviceSlug;
   const serviceList = Array.isArray(services.data) ? services.data : [];
@@ -566,10 +510,15 @@ function RequestFlow() {
   const [problem, setProblem] = useState('');
   const [description, setDescription] = useState('');
   const [address, setAddress] = useState('');
-  const [urgency, setUrgency] = useState('Today');
-  const [photoName, setPhotoName] = useState('');
+  const [urgency, setUrgency] = useState('This week');
+  const [preferredAt, setPreferredAt] = useState('');
+  const [budgetMin, setBudgetMin] = useState('');
+  const [budgetMax, setBudgetMax] = useState('');
+  const [coordinates, setCoordinates] = useState<{ latitude: number; longitude: number }>();
+  const [locationError, setLocationError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const service = launchServices.find((item) => item.slug === normalizedServiceSlug);
-  const catalogService = taxonomyServiceCatalog.find((item) => item.slug === normalizedServiceSlug);
   const actual = serviceList.find((item) => item.slug === normalizedServiceSlug);
   const experience = serviceExperiences[normalizedServiceSlug] ?? {
     prompt: 'Tell us what needs attention',
@@ -579,17 +528,76 @@ function RequestFlow() {
     icon: Wrench,
     options: issueSets[normalizedServiceSlug] ?? ['Repair or replacement', 'Installation', 'Something else'],
   };
-  const canNext = step === 1 ? Boolean(problem) : step === 2 ? description.trim().length > 5 : Boolean(address.trim());
-  const submit = () => create.mutate({ data: { serviceSlug: actual?.slug || normalizedServiceSlug, problem, description, address, urgency } }, { onSuccess: (request) => setLocation(`/technicians/${request.id}`) });
+  const canNext = step === 1 ? Boolean(problem) : step === 2 ? description.trim().length > 5 : Boolean(address.trim())
+    && (!budgetMin || Number.isFinite(Number(budgetMin)))
+    && (!budgetMax || Number.isFinite(Number(budgetMax)))
+    && (!budgetMin || !budgetMax || Number(budgetMax) >= Number(budgetMin));
+  const shareLocation = () => {
+    setLocationError('');
+    if (!navigator.geolocation) {
+      setLocationError('Location is not supported by this browser. You can continue with your written address.');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      ({ coords: position }) => setCoordinates({ latitude: position.latitude, longitude: position.longitude }),
+      () => setLocationError('Could not get your location. You can continue with your written address.'),
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 },
+    );
+  };
+  const submit = async () => {
+    if (saving || !actual) return;
+    setSaving(true);
+    setSubmitError('');
+    const data = {
+      serviceSlug: actual.slug,
+      problem,
+      description,
+      address,
+      urgency,
+      ...(preferredAt ? { preferredAt: new Date(preferredAt).toISOString() } : {}),
+      ...(budgetMin ? { budgetMin: Number(budgetMin) } : {}),
+      ...(budgetMax ? { budgetMax: Number(budgetMax) } : {}),
+      ...(coordinates ?? {}),
+    };
+    try {
+      const payloadHash = JSON.stringify(data);
+      const storageKey = `melse-request-key:${actual.slug}`;
+      const saved = sessionStorage.getItem(storageKey);
+      let idempotencyKey: string;
+      if (saved) {
+        const parsedSaved = JSON.parse(saved) as { payloadHash?: string; key?: string };
+        idempotencyKey = parsedSaved.payloadHash === payloadHash && parsedSaved.key
+          ? parsedSaved.key
+          : crypto.randomUUID();
+      } else {
+        idempotencyKey = crypto.randomUUID();
+      }
+      sessionStorage.setItem(storageKey, JSON.stringify({ payloadHash, key: idempotencyKey }));
+      const response = await fetch('/api/service-requests', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json', 'idempotency-key': idempotencyKey },
+        body: JSON.stringify(data),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Could not submit the service request.');
+      sessionStorage.removeItem(storageKey);
+      setLocation(`/technicians/${result.id}`);
+    } catch (cause) {
+      setSubmitError(cause instanceof Error ? cause.message : 'Could not submit the service request.');
+    } finally {
+      setSaving(false);
+    }
+  };
   return <div className="mx-auto max-w-3xl">
     <Link href="/" data-testid="link-back-home" className="mb-7 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"><ChevronLeft size={16} /> {localized('Back', language)}</Link>
-    <div className="mb-7"><div className="flex gap-2">{[1, 2, 3].map((number) => <span key={number} className={`h-1.5 flex-1 ${number <= step ? 'bg-primary' : 'bg-border'}`} />)}</div><div className="mt-4 flex items-center justify-between"><p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">{localized('Request help', language)} · 0{step} {localized('of', language)} 03</p><span className="text-xs font-semibold text-muted-foreground">{service ? localized(service.name, language) : catalogService ? catalogLabel(catalogService, language) : localized('Home service', language)}</span></div><h1 className="mt-3 text-4xl font-bold leading-[.98] tracking-[-.04em] md:text-5xl">{localized(step === 1 ? experience.prompt : step === 2 ? experience.detailPrompt : 'Where should we come?', language)}</h1></div>
+    <div className="mb-7"><div className="flex gap-2">{[1, 2, 3].map((number) => <span key={number} className={`h-1.5 flex-1 ${number <= step ? 'bg-primary' : 'bg-border'}`} />)}</div><div className="mt-4 flex items-center justify-between"><p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">{localized('Request help', language)} · 0{step} {localized('of', language)} 03</p><span className="text-xs font-semibold text-muted-foreground">{service ? localized(service.name, language) : localized(actual?.name ?? normalizedServiceSlug, language)}</span></div><h1 className="mt-3 text-4xl font-bold leading-[.98] tracking-[-.04em] md:text-5xl">{localized(step === 1 ? experience.prompt : step === 2 ? experience.detailPrompt : 'Where should we come?', language)}</h1></div>
     {services.isLoading ? <LoadingBlock lines={3} /> : services.isError ? <ErrorBlock retry={() => services.refetch()} /> : <div className="border border-border bg-card p-4 md:p-7">
       {step === 1 && <ServiceBrief experience={experience} selected={problem} onSelect={setProblem} language={language} />}
-      {step === 2 && <div><label htmlFor="request-description" className="text-sm font-bold">{localized(experience.detailPrompt, language)}</label><p className="mt-1 text-sm text-muted-foreground">{localized(experience.helper, language)}</p><textarea id="request-description" data-testid="input-request-description" value={description} onChange={(event) => setDescription(event.target.value)} placeholder={localized(experience.placeholder, language)} className="mt-5 min-h-40 w-full resize-none border border-input bg-background p-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-accent/30" /><div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><label className="inline-flex min-h-11 w-fit cursor-pointer items-center gap-2 border border-border px-3 text-xs font-semibold text-muted-foreground transition hover:border-primary hover:text-primary"><ImagePlus size={16} /> {localized(photoName ? 'Photo selected' : 'Add a photo (optional)', language)}<input type="file" accept="image/*" className="sr-only" data-testid="input-request-photo" onChange={(event) => setPhotoName(event.target.files?.[0]?.name || '')} /></label><span className="text-xs text-muted-foreground">{photoName ? `${photoName} · ${localized('held for this request', language)}` : `${description.length} ${localized('characters', language)}`}</span></div></div>}
-      {step === 3 && <div className="space-y-6"><div><label htmlFor="request-address" className="text-sm font-bold">{localized('Your Addis Ababa address', language)}</label><p className="mt-1 text-sm text-muted-foreground">{localized('A house, building, or area is enough to start.', language)}</p><div className="relative mt-3"><MapPin size={17} className="absolute left-4 top-4 text-primary" /><input id="request-address" data-testid="input-request-address" value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Bole, Kazanchis, CMC..." className="h-14 w-full border border-input bg-background pl-11 pr-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-accent/30" /></div></div><div><p className="text-sm font-bold">{localized('When do you need it?', language)}</p><div className="mt-3 grid gap-2 sm:grid-cols-3">{['Today', 'This week', 'Just planning'].map((item) => <button key={item} onClick={() => setUrgency(item)} data-testid={`button-urgency-${item.toLowerCase().replaceAll(' ', '-')}`} className={`min-h-16 border px-3 py-3 text-left text-sm transition ${urgency === item ? 'border-primary bg-secondary font-bold text-primary' : 'border-border hover:border-primary/50'}`}><Clock3 size={16} className="mb-2" />{localized(item, language)}</button>)}</div></div><div className="flex gap-3 bg-secondary/60 p-4 text-sm text-muted-foreground"><ShieldCheck className="shrink-0 text-primary" size={18} /><p>{localized('Before booking, you’ll see an estimate of', language)} <strong className="text-foreground">ETB 400–700</strong> {localized('and an arrival window.', language)}</p></div></div>}
-      <div className="mt-7 flex items-center justify-between border-t border-border pt-5"><button data-testid="button-request-back" onClick={() => setStep(Math.max(1, step - 1))} className={`text-sm font-bold ${step === 1 ? 'invisible' : ''}`}>{localized('Back', language)}</button>{step < 3 ? <button disabled={!canNext} data-testid="button-request-next" onClick={() => setStep(step + 1)} className="inline-flex min-h-11 items-center gap-2 bg-primary px-5 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-35">{localized('Continue', language)} <ChevronRight size={17} /></button> : <button disabled={!canNext || create.isPending} data-testid="button-submit-request" onClick={submit} className="inline-flex min-h-11 items-center gap-2 bg-primary px-5 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-35">{localized(create.isPending ? 'Sending request...' : 'See estimate and people', language)} <ArrowRight size={17} /></button>}</div>
-      {create.isError && <p className="mt-4 text-right text-sm text-destructive" data-testid="text-request-error">We could not send that. Please try again.</p>}
+      {step === 2 && <div><label htmlFor="request-description" className="text-sm font-bold">{localized(experience.detailPrompt, language)}</label><p className="mt-1 text-sm text-muted-foreground">{localized(experience.helper, language)}</p><textarea id="request-description" data-testid="input-request-description" value={description} onChange={(event) => setDescription(event.target.value)} placeholder={localized(experience.placeholder, language)} className="mt-5 min-h-40 w-full resize-none border border-input bg-background p-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-accent/30" /><p className="mt-2 text-xs text-muted-foreground">Photo uploads are not available yet; no image will be sent or stored.</p><p className="mt-1 text-right text-xs text-muted-foreground">{description.length} {localized('characters', language)}</p></div>}
+      {step === 3 && <div className="space-y-6"><div><label htmlFor="request-address" className="text-sm font-bold">{localized('Your Addis Ababa address', language)}</label><p className="mt-1 text-sm text-muted-foreground">{localized('A house, building, or area is enough to start.', language)}</p><div className="relative mt-3"><MapPin size={17} className="absolute left-4 top-4 text-primary" /><input id="request-address" data-testid="input-request-address" value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Bole, Kazanchis, CMC..." className="h-14 w-full border border-input bg-background pl-11 pr-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-accent/30" /></div><button type="button" onClick={shareLocation} className="mt-2 text-xs font-semibold text-primary underline">Share current location (optional)</button>{coordinates && <p className="mt-1 text-xs text-muted-foreground">Location attached for distance-based provider search.</p>}{locationError && <p role="alert" className="mt-1 text-xs text-destructive">{locationError}</p>}</div><div><p className="text-sm font-bold">{localized('When do you need it?', language)}</p><div className="mt-3 grid gap-2 sm:grid-cols-3">{['Today', 'This week', 'Just planning'].map((item) => <button type="button" key={item} onClick={() => setUrgency(item)} data-testid={`button-urgency-${item.toLowerCase().replaceAll(' ', '-')}`} className={`min-h-16 border px-3 py-3 text-left text-sm transition ${urgency === item ? 'border-primary bg-secondary font-bold text-primary' : 'border-border hover:border-primary/50'}`}><Clock3 size={16} className="mb-2" />{localized(item, language)}</button>)}</div><label htmlFor="request-preferred-at" className="mt-4 block text-sm font-semibold">Preferred date and time (optional)<input id="request-preferred-at" type="datetime-local" min={new Date().toISOString().slice(0, 16)} value={preferredAt} onChange={(event) => setPreferredAt(event.target.value)} className="mt-2 h-11 w-full border border-input bg-background px-3" /></label></div><div className="grid gap-3 sm:grid-cols-2"><label className="text-sm font-semibold">Minimum budget, ETB (optional)<input type="number" min="0" step="0.01" value={budgetMin} onChange={(event) => setBudgetMin(event.target.value)} className="mt-2 h-11 w-full border border-input bg-background px-3" /></label><label className="text-sm font-semibold">Maximum budget, ETB (optional)<input type="number" min="0" step="0.01" value={budgetMax} onChange={(event) => setBudgetMax(event.target.value)} className="mt-2 h-11 w-full border border-input bg-background px-3" /></label></div><div className="flex gap-3 bg-secondary/60 p-4 text-sm text-muted-foreground"><ShieldCheck className="shrink-0 text-primary" size={18} /><p>Estimate for this service: <strong className="text-foreground">{actual ? `${money(actual.startingPrice)}–${money(actual.priceMax)}` : 'Estimate unavailable until service pricing is configured.'}</strong>. The final price is confirmed with the provider.</p></div></div>}
+      <div className="mt-7 flex items-center justify-between border-t border-border pt-5"><button data-testid="button-request-back" onClick={() => setStep(Math.max(1, step - 1))} className={`text-sm font-bold ${step === 1 ? 'invisible' : ''}`}>{localized('Back', language)}</button>{step < 3 ? <button disabled={!canNext} data-testid="button-request-next" onClick={() => setStep(step + 1)} className="inline-flex min-h-11 items-center gap-2 bg-primary px-5 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-35">{localized('Continue', language)} <ChevronRight size={17} /></button> : <button disabled={!canNext || saving} data-testid="button-submit-request" onClick={() => void submit()} className="inline-flex min-h-11 items-center gap-2 bg-primary px-5 text-sm font-bold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-35">{saving ? localized('Sending request...', language) : localized('See estimate and people', language)} <ArrowRight size={17} /></button>}</div>
+      {submitError && <p role="alert" className="mt-4 text-right text-sm text-destructive" data-testid="text-request-error">{submitError}</p>}
     </div>}
   </div>;
 }
@@ -636,14 +644,110 @@ function BookingPage() {
   const bookingQuery = useGetBooking(id, { query: { enabled: Boolean(id), queryKey: getGetBookingQueryKey(id) } });
   const update = useUpdateBookingStatus();
   const client = useQueryClient();
+  const { user } = useAuth();
+  const [quote, setQuote] = useState('');
+  const [paymentEmail, setPaymentEmail] = useState('');
+  const [rating, setRating] = useState('5');
+  const [review, setReview] = useState('');
+  const [disputeReason, setDisputeReason] = useState('QUALITY');
+  const [disputeDescription, setDisputeDescription] = useState('');
+  const [feedback, setFeedback] = useState('');
+  const payment = useMutation({
+    mutationFn: () => apiFetch<{ redirectUrl: string }>(`/bookings/${id}/payment`, {
+      method: 'POST',
+      body: JSON.stringify({
+        phoneNumber: user.phoneNumber,
+        email: paymentEmail,
+        returnUrl: `${window.location.origin}/booking/${id}`,
+      }),
+    }),
+    onSuccess: (result) => window.location.assign(result.redirectUrl),
+  });
+  const verify = useMutation({
+    mutationFn: (transactionId: string) => apiFetch(`/payments/${encodeURIComponent(transactionId)}/verify`, { method: 'POST' }),
+    onSuccess: async () => {
+      setFeedback('Payment status was checked with the payment provider.');
+      await bookingQuery.refetch();
+    },
+  });
+  const submitReview = useMutation({
+    mutationFn: () => apiFetch(`/bookings/${id}/reviews`, {
+      method: 'POST',
+      body: JSON.stringify({ rating: Number(rating), ...(review.trim() ? { comment: review.trim() } : {}) }),
+    }),
+    onSuccess: async () => {
+      setFeedback('Your review was saved.');
+      await bookingQuery.refetch();
+    },
+  });
+  const submitDispute = useMutation({
+    mutationFn: () => apiFetch(`/bookings/${id}/disputes`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: disputeReason, description: disputeDescription }),
+    }),
+    onSuccess: async () => {
+      setFeedback('Your dispute was submitted for review.');
+      setDisputeDescription('');
+      await bookingQuery.refetch();
+    },
+  });
   const booking = bookingQuery.data;
+  useEffect(() => {
+    const transactionId = new URLSearchParams(window.location.search).get('tx_ref')
+      ?? new URLSearchParams(window.location.search).get('transaction_id');
+    if (!transactionId) return;
+    verify.mutate(transactionId);
+    window.history.replaceState({}, '', window.location.pathname);
+  }, []);
   if (bookingQuery.isLoading) return <div className="mx-auto max-w-3xl"><LoadingBlock lines={5} /></div>;
   if (bookingQuery.isError || !booking) return <div className="mx-auto max-w-3xl"><ErrorBlock label="We could not find this booking." retry={() => bookingQuery.refetch()} /></div>;
   const currentIndex = statusOrder.indexOf(booking.status as typeof statusOrder[number]);
-  const nextStatus = currentIndex >= 0 ? statusOrder[Math.min(currentIndex + 1, statusOrder.length - 1)] : undefined;
   const completed = ['COMPLETED', 'CUSTOMER_CONFIRMED', 'PAID', 'RATED'].includes(booking.status);
-  const advance = () => nextStatus && update.mutate({ id, data: { status: nextStatus } }, { onSuccess: (updated) => client.setQueryData(getGetBookingQueryKey(id), updated) });
-  return <div className="mx-auto max-w-4xl"><Link href="/" data-testid="link-booking-home" className="mb-7 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"><ChevronLeft size={16} /> Home</Link><div className="mb-7 flex flex-col gap-4 md:flex-row md:items-end md:justify-between"><div><p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">Booking #{booking.id.slice(-6)}</p><h1 className="mt-3 text-4xl font-bold leading-none tracking-[-.04em] md:text-5xl">{completed ? 'Job complete.' : 'We’re on it.'}<br /><span className="display-font font-normal italic">{completed ? 'Thank you.' : 'Stay in the loop.'}</span></h1></div><span data-testid="status-booking" className="inline-flex w-fit items-center gap-2 bg-accent/25 px-3 py-2 text-xs font-bold text-primary"><span className="size-2 rounded-full bg-primary" />{titleCase(booking.status)}</span></div><div className="grid gap-5 lg:grid-cols-[1fr_320px]"><section className="border border-border bg-card p-5 md:p-7"><div className="flex items-start justify-between border-b border-border pb-5"><div><p className="text-sm font-bold">{booking.serviceName}</p><p className="mt-1 text-sm text-muted-foreground">with {booking.technicianName}</p></div><div className="text-right"><p className="mono-font text-sm">{money(booking.priceMin)}–{money(booking.priceMax)}</p><p className="mt-1 text-xs text-muted-foreground">estimate</p></div></div><StatusTimeline currentIndex={currentIndex} /><div className="mt-6 flex items-start gap-3 bg-secondary/60 p-4 text-sm"><MapPin size={17} className="mt-0.5 shrink-0 text-primary" /><div><p className="font-bold">{booking.address}</p><p className="mt-1 text-xs text-muted-foreground">Arrival: {booking.eta}</p></div></div>{!completed && <div className="mt-5 flex flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted-foreground">Next update comes from the service desk.</p><button disabled={!nextStatus || update.isPending} onClick={advance} data-testid="button-demo-advance-status" className="min-h-10 border border-primary px-4 text-xs font-bold text-primary disabled:opacity-40">Demo: advance status</button></div>}{update.isError && <p className="mt-3 text-sm text-destructive" data-testid="text-status-error">Status could not be updated.</p>}</section><aside className="space-y-3"><div className="border border-border bg-secondary/55 p-5"><p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">What to expect</p><p className="mt-3 text-sm leading-relaxed">Your estimate is a range, not a payment. Confirm the final amount with the professional before work begins.</p></div><Link href="/support" data-testid="link-booking-support" className="flex min-h-12 items-center justify-between border border-border bg-card px-4 text-sm font-bold transition hover:border-primary">Need support? <ArrowRight size={16} className="text-primary" /></Link></aside></div></div>;
+  const providerMode = user.roles.includes('PROVIDER') && user.activeMode === 'PROVIDER';
+  const nextProviderStatus: Record<string, string> = {
+    ASSIGNED: 'ACCEPTED',
+    ACCEPTED: 'TECHNICIAN_EN_ROUTE',
+    TECHNICIAN_EN_ROUTE: 'ARRIVED',
+    ARRIVED: 'IN_PROGRESS',
+    IN_PROGRESS: 'COMPLETED',
+  };
+  const providerNext = providerMode ? nextProviderStatus[booking.status] : undefined;
+  const customerCanConfirm = !providerMode && booking.status === 'COMPLETED';
+  const statusAction = providerNext ?? (customerCanConfirm ? 'CUSTOMER_CONFIRMED' : undefined);
+  const updateStatus = (status: string) => update.mutate({
+    id,
+    data: {
+      status: status as BookingStatusInputStatus,
+      ...(status === 'ACCEPTED' && quote ? { quotedPrice: Number(quote) } : {}),
+    },
+  }, { onSuccess: (updated) => {
+    client.setQueryData(getGetBookingQueryKey(id), updated);
+    setFeedback('');
+  } });
+  const canDispute = ['IN_PROGRESS', 'COMPLETED', 'CUSTOMER_CONFIRMED', 'PAID', 'RATED'].includes(booking.status);
+  return <div className="mx-auto max-w-4xl">
+    <Link href="/" data-testid="link-booking-home" className="mb-7 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"><ChevronLeft size={16} /> Home</Link>
+    <div className="mb-7 flex flex-col gap-4 md:flex-row md:items-end md:justify-between"><div><p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">Booking #{booking.id.slice(-6)}</p><h1 className="mt-3 text-4xl font-bold leading-none tracking-[-.04em] md:text-5xl">{completed ? 'Job complete.' : 'Booking update'}<br /><span className="display-font font-normal italic">{completed ? 'Thank you.' : 'Your service details.'}</span></h1></div><span data-testid="status-booking" className="inline-flex w-fit items-center gap-2 bg-accent/25 px-3 py-2 text-xs font-bold text-primary"><span className="size-2 rounded-full bg-primary" />{titleCase(booking.status)}</span></div>
+    <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
+      <section className="border border-border bg-card p-5 md:p-7">
+        <div className="flex items-start justify-between border-b border-border pb-5"><div><p className="text-sm font-bold">{booking.serviceName}</p><p className="mt-1 text-sm text-muted-foreground">with {booking.technicianName}</p></div><div className="text-right"><p className="mono-font text-sm">{booking.finalPrice === null ? `${money(booking.priceMin)}–${money(booking.priceMax)}` : money(booking.finalPrice)}</p><p className="mt-1 text-xs text-muted-foreground">{booking.finalPrice === null ? 'estimate' : 'provider-confirmed price'}</p></div></div>
+        <StatusTimeline currentIndex={currentIndex} />
+        <div className="mt-6 flex items-start gap-3 bg-secondary/60 p-4 text-sm"><MapPin size={17} className="mt-0.5 shrink-0 text-primary" /><div><p className="font-bold">{booking.address}</p><p className="mt-1 text-xs text-muted-foreground">Arrival: {booking.eta}</p></div></div>
+        <div className="mt-5 flex flex-wrap gap-2">
+          {statusAction && <div className="flex w-full flex-col gap-2 sm:flex-row">
+            {providerNext === 'ACCEPTED' && <label className="min-w-0 flex-1 text-xs font-semibold">Total quote in ETB (if required)<input type="number" min="0.01" step="0.01" value={quote} onChange={(event) => setQuote(event.target.value)} className="mt-1 min-h-10 w-full border border-input bg-background px-3 text-sm" /></label>}
+            <button onClick={() => updateStatus(statusAction)} disabled={update.isPending} className="min-h-10 bg-primary px-4 text-sm font-bold text-primary-foreground disabled:opacity-50">{update.isPending ? 'Saving…' : statusAction === 'CUSTOMER_CONFIRMED' ? 'Confirm completed service' : `Mark ${titleCase(statusAction)}`}</button>
+          </div>}
+          {booking.status === 'CUSTOMER_CONFIRMED' && !providerMode && <form onSubmit={(event) => { event.preventDefault(); payment.mutate(); }} className="grid w-full gap-2 sm:grid-cols-[1fr_1fr_auto]"><label className="text-xs font-semibold">Email for payment<input type="email" required value={paymentEmail} onChange={(event) => setPaymentEmail(event.target.value)} className="mt-1 min-h-10 w-full border border-input bg-background px-3 text-sm" /></label><p className="self-end pb-3 text-xs text-muted-foreground">Phone: {user.phoneNumber}</p><button disabled={payment.isPending} className="min-h-10 bg-primary px-4 text-sm font-bold text-primary-foreground disabled:opacity-50">{payment.isPending ? 'Connecting…' : 'Pay securely'}</button></form>}
+          {['PAID', 'RATED'].includes(booking.status) && !providerMode && <form onSubmit={(event) => { event.preventDefault(); submitReview.mutate(); }} className="grid w-full gap-2 sm:grid-cols-[120px_1fr_auto]"><label className="text-xs font-semibold">Rating<select value={rating} onChange={(event) => setRating(event.target.value)} className="mt-1 min-h-10 w-full border border-input bg-background px-3 text-sm">{[5, 4, 3, 2, 1].map((value) => <option key={value} value={value}>{value} star{value === 1 ? '' : 's'}</option>)}</select></label><label className="text-xs font-semibold">Review (optional)<input value={review} onChange={(event) => setReview(event.target.value)} maxLength={2000} className="mt-1 min-h-10 w-full border border-input bg-background px-3 text-sm" /></label><button disabled={submitReview.isPending} className="min-h-10 border border-primary px-4 text-sm font-bold text-primary">{submitReview.isPending ? 'Saving…' : 'Submit review'}</button></form>}
+          {canDispute && <form onSubmit={(event) => { event.preventDefault(); submitDispute.mutate(); }} className="grid w-full gap-2 border-t border-border pt-4 sm:grid-cols-[150px_1fr_auto]"><label className="text-xs font-semibold">Issue<select value={disputeReason} onChange={(event) => setDisputeReason(event.target.value)} className="mt-1 min-h-10 w-full border border-input bg-background px-3 text-sm">{['QUALITY', 'NO_SHOW', 'SAFETY', 'PRICE', 'DAMAGE', 'OTHER'].map((reason) => <option key={reason} value={reason}>{titleCase(reason)}</option>)}</select></label><label className="text-xs font-semibold">Describe the issue<input required minLength={10} maxLength={5000} value={disputeDescription} onChange={(event) => setDisputeDescription(event.target.value)} className="mt-1 min-h-10 w-full border border-input bg-background px-3 text-sm" /></label><button disabled={submitDispute.isPending} className="min-h-10 border border-destructive px-4 text-sm font-bold text-destructive">{submitDispute.isPending ? 'Sending…' : 'Open dispute'}</button></form>}
+        </div>
+        {(update.isError || payment.isError || verify.isError || submitReview.isError || submitDispute.isError) && <p role="alert" className="mt-3 text-sm text-destructive">{update.error?.message || payment.error?.message || verify.error?.message || submitReview.error?.message || submitDispute.error?.message}</p>}
+        {feedback && <p role="status" className="mt-3 text-sm text-primary">{feedback}</p>}
+      </section>
+      <aside className="space-y-3"><div className="border border-border bg-secondary/55 p-5"><p className="mono-font text-[10px] uppercase tracking-[.16em] text-muted-foreground">Booking details</p><p className="mt-3 text-sm leading-relaxed">The estimate is not a payment amount. Review the provider-confirmed price before confirming completion and paying.</p></div><Link href="/messages" data-testid="link-booking-messages" className="flex min-h-12 items-center justify-between border border-border bg-card px-4 text-sm font-bold transition hover:border-primary">Open booking messages <MessageCircle size={16} className="text-primary" /></Link><Link href="/support" data-testid="link-booking-support" className="flex min-h-12 items-center justify-between border border-border bg-card px-4 text-sm font-bold transition hover:border-primary">Need support? <ArrowRight size={16} className="text-primary" /></Link></aside>
+    </div>
+  </div>;
 }
 
 function StatusTimeline({ currentIndex }: { currentIndex: number }) {
@@ -674,16 +778,273 @@ function DetailLine({ label, value }: { label: string; value: string }) {
 }
 
 function Messages() {
-  return <PageIntro eyebrow="Customer desk" title="Messages" detail="Updates from your Melse service desk will appear here."><EmptyBlock title="No messages yet" detail="When your request needs an update, we’ll keep the conversation in one place." action={<Link href="/support" data-testid="link-messages-support" className="mt-4 inline-flex text-sm font-bold text-primary">Contact support <ArrowRight size={15} className="ml-1" /></Link>} /></PageIntro>;
+  const queryClient = useQueryClient();
+  const [conversationId, setConversationId] = useState('');
+  const [draft, setDraft] = useState('');
+  const conversations = useQuery({
+    queryKey: ['marketplace', 'conversations'],
+    queryFn: () => apiFetch<Array<{ bookingId: string; conversationId: string | null; serviceName: string; status: string; lastMessageAt: string | null }>>('/conversations'),
+  });
+  const selected = conversations.data?.find((conversation) => conversation.conversationId === conversationId)
+    ?? conversations.data?.find((conversation) => conversation.conversationId)
+    ?? null;
+  useEffect(() => {
+    if (selected?.conversationId && selected.conversationId !== conversationId) setConversationId(selected.conversationId);
+  }, [selected?.conversationId, conversationId]);
+  const messages = useQuery({
+    queryKey: ['marketplace', 'messages', selected?.conversationId],
+    queryFn: () => apiFetch<Array<{ id: string; senderId: string; body: string; createdAt: string; readAt: string | null }>>(`/conversations/${selected!.conversationId}/messages`),
+    enabled: Boolean(selected?.conversationId),
+    refetchInterval: 5000,
+  });
+  const send = useMutation({
+    mutationFn: () => apiFetch(`/conversations/${selected!.conversationId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ body: draft }),
+    }),
+    onSuccess: async () => {
+      setDraft('');
+      await queryClient.invalidateQueries({ queryKey: ['marketplace', 'messages', selected?.conversationId] });
+      await queryClient.invalidateQueries({ queryKey: ['marketplace', 'conversations'] });
+    },
+  });
+  const { user } = useAuth();
+  const messageRows = messages.data ?? [];
+  return <PageIntro eyebrow="Melse" title="Messages" detail="Persistent, booking-specific conversations with your service provider.">
+    {conversations.isLoading ? <LoadingBlock lines={4} /> : conversations.isError ? <ErrorBlock retry={() => conversations.refetch()} /> : !conversations.data?.some((conversation) => conversation.conversationId) ? <EmptyBlock title="No booking conversations yet" detail="Messages become available after a provider is assigned to a booking." /> : <div className="grid min-h-[60vh] gap-4 md:grid-cols-[280px_1fr]">
+      <div className="divide-y divide-border border border-border bg-card">
+        {conversations.data.filter((conversation) => conversation.conversationId).map((conversation) => <button key={conversation.conversationId} type="button" onClick={() => setConversationId(conversation.conversationId!)} className={`w-full p-4 text-left hover:bg-secondary/50 ${conversation.conversationId === selected?.conversationId ? 'bg-secondary' : ''}`}>
+          <p className="truncate text-sm font-bold">{conversation.serviceName}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Booking · {conversation.status.toLowerCase().replaceAll('_', ' ')}</p>
+        </button>)}
+      </div>
+      <section className="flex min-h-[60vh] flex-col border border-border bg-card">
+        <div className="border-b border-border p-4"><p className="font-bold">{selected?.serviceName}</p><p className="mt-1 text-xs text-muted-foreground">Only booking participants can read or send these messages.</p></div>
+        <div className="flex-1 space-y-3 overflow-y-auto p-4" aria-live="polite">
+          {messages.isLoading ? <LoadingBlock lines={3} /> : messages.isError ? <ErrorBlock retry={() => messages.refetch()} /> : messageRows.length ? messageRows.map((message) => <div key={message.id} className={`max-w-[85%] p-3 text-sm ${message.senderId === user.id ? 'ml-auto bg-primary text-primary-foreground' : 'bg-secondary'}`}><p className="whitespace-pre-wrap break-words">{message.body}</p><time className="mt-2 block text-[10px] opacity-70">{dateLabel(message.createdAt)}</time></div>) : <p className="text-sm text-muted-foreground">Start the conversation about this booking.</p>}
+        </div>
+        <form onSubmit={(event) => { event.preventDefault(); if (draft.trim()) send.mutate(); }} className="flex gap-2 border-t border-border p-3">
+          <label className="sr-only" htmlFor="message-draft">Message</label>
+          <input id="message-draft" value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={4000} className="min-h-11 min-w-0 flex-1 border border-input bg-background px-3 text-sm" placeholder="Write a message" />
+          <button disabled={!draft.trim() || send.isPending || !selected} className="min-h-11 bg-primary px-4 text-sm font-bold text-primary-foreground disabled:opacity-50">Send</button>
+        </form>
+        {send.isError && <p role="alert" className="px-4 pb-3 text-sm text-destructive">{send.error.message}</p>}
+      </section>
+    </div>}
+  </PageIntro>;
+}
+
+function EmergencyPage() {
+  const { id = '' } = useParams<{ id?: string }>();
+  const services = useListServices();
+  const [, setLocation] = useLocation();
+  const [serviceSlug, setServiceSlug] = useState('');
+  const [emergencyType, setEmergencyType] = useState('PLUMBING');
+  const [problem, setProblem] = useState('');
+  const [description, setDescription] = useState('');
+  const [address, setAddress] = useState('');
+  const [coordinates, setCoordinates] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [safetyAcknowledged, setSafetyAcknowledged] = useState(false);
+  const [locationError, setLocationError] = useState('');
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
+  const queryClient = useQueryClient();
+  const status = useQuery({
+    queryKey: ['marketplace', 'emergency', id],
+    queryFn: () => apiFetch<{ requestId: string; type: string; status: string; bookingStatus: string | null; location: string; tracking: { latitude: number; longitude: number; updatedAt: string } | null; safetyNotice: string }>(`/emergency/requests/${id}`),
+    enabled: Boolean(id),
+    refetchInterval: 5000,
+  });
+  const create = useMutation({
+    mutationFn: () => apiFetch<{ requestId: string }>(`/emergency/requests`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify({
+        serviceSlug,
+        emergencyType,
+        problem,
+        description,
+        address,
+        latitude: coordinates?.latitude,
+        longitude: coordinates?.longitude,
+        safetyAcknowledged,
+      }),
+    }),
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({ queryKey: ['marketplace', 'emergency'] });
+      setLocation(`/emergency/${result.requestId}`);
+    },
+  });
+  const locate = () => {
+    setLocationError('');
+    if (!navigator.geolocation) {
+      setLocationError('This browser does not support location access. Enter a precise address instead.');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      ({ coords: point }) => setCoordinates({ latitude: point.latitude, longitude: point.longitude }),
+      (error) => setLocationError(error.message || 'Location access was not granted.'),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    );
+  };
+  const serviceRows = Array.isArray(services.data) ? services.data : [];
+  if (id) return <PageIntro eyebrow="Urgent dispatch" title="Emergency request" detail="Dispatch status is updated by the assigned provider and is not a substitute for emergency authorities.">
+    {status.isLoading ? <LoadingBlock lines={3} /> : status.isError ? <ErrorBlock retry={() => status.refetch()} /> : status.data ? <div className="max-w-2xl border border-border bg-card p-5"><p className="text-sm font-bold">Dispatch status: {titleCase(status.data.status)}</p><p className="mt-2 text-sm text-muted-foreground">Booking status: {status.data.bookingStatus ? titleCase(status.data.bookingStatus) : 'Waiting for provider acceptance'}</p><p className="mt-3 text-sm">{status.data.location}</p>{status.data.tracking && <p className="mt-3 text-xs text-muted-foreground">Provider location updated {dateLabel(status.data.tracking.updatedAt)} · {status.data.tracking.latitude.toFixed(5)}, {status.data.tracking.longitude.toFixed(5)}</p>}<p className="mt-4 border-t border-border pt-3 text-xs text-destructive">{status.data.safetyNotice}</p></div> : null}
+  </PageIntro>;
+  return <PageIntro eyebrow="Urgent dispatch" title="Request urgent help" detail="Melse will contact one eligible nearby provider. For immediate danger, fire, serious injury, or risk to life, contact the appropriate local emergency authorities first.">
+    <form onSubmit={(event) => { event.preventDefault(); create.mutate(); }} className="max-w-2xl space-y-4 border border-border bg-card p-5">
+      <label className="block text-sm font-semibold">Service<select required value={serviceSlug} onChange={(event) => { setServiceSlug(event.target.value); setIdempotencyKey(crypto.randomUUID()); }} className="mt-1 min-h-11 w-full border border-input bg-background px-3"><option value="">Select a service</option>{serviceRows.map((service) => <option key={service.slug} value={service.slug}>{service.name}</option>)}</select></label>
+      <label className="block text-sm font-semibold">Emergency type<select value={emergencyType} onChange={(event) => setEmergencyType(event.target.value)} className="mt-1 min-h-11 w-full border border-input bg-background px-3">{[['LOCKSMITH', 'Locked out'], ['PLUMBING', 'Urgent plumbing'], ['ELECTRICAL', 'Electrical issue'], ['ROADSIDE', 'Roadside assistance'], ['OTHER', 'Other']].map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+      <label className="block text-sm font-semibold">Short description<input required minLength={2} maxLength={200} value={problem} onChange={(event) => setProblem(event.target.value)} className="mt-1 min-h-11 w-full border border-input bg-background px-3" /></label>
+      <label className="block text-sm font-semibold">Details<textarea required minLength={5} maxLength={3000} value={description} onChange={(event) => setDescription(event.target.value)} className="mt-1 min-h-24 w-full border border-input bg-background p-3" /></label>
+      <label className="block text-sm font-semibold">Service address<input required minLength={4} maxLength={1000} value={address} onChange={(event) => setAddress(event.target.value)} className="mt-1 min-h-11 w-full border border-input bg-background px-3" /></label>
+      <div><button type="button" onClick={locate} className="min-h-10 border border-primary px-4 text-sm font-bold text-primary">Share current location</button><p className="mt-1 text-xs text-muted-foreground">{coordinates ? 'Precise coordinates will only be used for this dispatch.' : 'Location access is optional for standard requests but required for emergency dispatch.'}</p>{locationError && <p role="alert" className="mt-1 text-sm text-destructive">{locationError}</p>}</div>
+      <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={safetyAcknowledged} onChange={(event) => setSafetyAcknowledged(event.target.checked)} className="mt-1" /><span>I understand Melse is not an emergency service and will contact local authorities first in immediate danger.</span></label>
+      <button disabled={!coordinates || !safetyAcknowledged || create.isPending || services.isLoading} className="min-h-11 bg-destructive px-5 text-sm font-bold text-destructive-foreground disabled:opacity-50">{create.isPending ? 'Contacting eligible provider…' : 'Request emergency dispatch'}</button>
+      {create.isError && <p role="alert" className="text-sm text-destructive">{create.error.message}</p>}
+    </form>
+  </PageIntro>;
 }
 
 function Profile() {
-  return <PageIntro eyebrow="Customer desk" title="Profile" detail="Keep your contact details and service preferences close at hand."><div className="max-w-xl border border-border bg-card"><div className="flex items-center gap-4 border-b border-border p-5"><div className="grid size-14 place-items-center rounded-full bg-primary text-sm font-bold text-accent">AM</div><div><p className="font-bold">Aster Mekonnen</p><p className="mt-1 text-sm text-muted-foreground">Customer in Addis Ababa</p></div></div><div className="divide-y divide-border"><DetailLine label="Phone" value="+251 9•• ••• •••" /><DetailLine label="Saved area" value="Addis Ababa" /><Link href="/support" data-testid="link-profile-support" className="flex items-center justify-between p-4 text-sm font-bold hover:bg-secondary/40">Support and guarantees <ArrowRight size={16} className="text-primary" /></Link></div></div></PageIntro>;
+  const { user, updateUser } = useAuth();
+  const [, setLocation] = useLocation();
+  const services = useListServices();
+  const [bio, setBio] = useState('');
+  const [experienceYears, setExperienceYears] = useState('0');
+  const [serviceArea, setServiceArea] = useState('');
+  const [hourlyRate, setHourlyRate] = useState('');
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [providerProfile, setProviderProfile] = useState<{ verificationStatus: string; isAvailable: boolean } | null>(null);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const isProvider = user.roles.includes('PROVIDER');
+
+  useEffect(() => {
+    if (!isProvider) return;
+    let active = true;
+    fetch('/api/provider/profile', { credentials: 'same-origin' }).then(async (response) => {
+      if (!response.ok) throw new Error('Could not load provider profile.');
+      const profile = await response.json();
+      if (!active) return;
+      setBio(profile.bio ?? '');
+      setExperienceYears(String(profile.experienceYears ?? 0));
+      setServiceArea(profile.serviceArea ?? '');
+      setHourlyRate(profile.hourlyRate ?? '');
+      setSelectedServices(profile.services ?? []);
+      setProviderProfile({ verificationStatus: profile.verificationStatus, isAvailable: profile.isAvailable });
+    }).catch((cause: unknown) => {
+      if (active) setError(cause instanceof Error ? cause.message : 'Could not load provider profile.');
+    });
+    return () => { active = false; };
+  }, [isProvider]);
+
+  const saveProviderProfile = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      const response = await fetch(isProvider ? '/api/provider/profile' : '/api/provider/activate', {
+        method: isProvider ? 'PATCH' : 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ bio, experienceYears: Number(experienceYears), serviceArea, hourlyRate: hourlyRate || undefined, services: selectedServices }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || 'Could not save provider profile.');
+      await apiFetch('/provider/services', {
+        method: 'PUT',
+        body: JSON.stringify({
+          services: selectedServices.map((categorySlug) => ({
+            categorySlug,
+            pricingModel: hourlyRate ? 'HOURLY' : 'QUOTE',
+            amount: hourlyRate ? Number(hourlyRate) : null,
+          })),
+        }),
+      });
+      setProviderProfile({ verificationStatus: body.verificationStatus, isAvailable: body.isAvailable });
+      if (!isProvider) updateUser({ ...user, roles: [...new Set([...user.roles, 'PROVIDER'])] });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not save provider profile.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const setAvailability = async (isAvailable: boolean) => {
+    setError('');
+    try {
+      const response = await fetch('/api/provider/profile', {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ isAvailable }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(body.error || 'Could not update availability.');
+        return;
+      }
+      setProviderProfile({ verificationStatus: body.verificationStatus, isAvailable: body.isAvailable });
+    } catch {
+      setError('Could not reach Melse to update availability.');
+    }
+  };
+
+  const logout = async () => {
+    try {
+      const response = await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+      if (!response.ok) {
+        setError('Could not sign out. Please try again.');
+        return;
+      }
+      setLocation('/auth');
+    } catch {
+      setError('Could not reach Melse to sign out. Please try again.');
+    }
+  };
+
+  const serviceOptions = Array.isArray(services.data) ? services.data : [];
+  return <PageIntro eyebrow="Account" title="Profile" detail="Your account and provider identity are securely connected to your Melse session.">
+    <div className="max-w-xl border border-border bg-card">
+      <div className="flex items-center gap-4 border-b border-border p-5"><div className="grid size-14 place-items-center rounded-full bg-primary text-sm font-bold text-accent">{user.fullName.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</div><div><p className="font-bold">{user.fullName}</p><p className="mt-1 text-sm text-muted-foreground">{user.phoneNumber}</p></div></div>
+      <div className="divide-y divide-border">
+        <DetailLine label="Account roles" value={user.roles.join(' · ')} />
+        <DetailLine label="Active mode" value={user.activeMode} />
+        <Link href="/support" data-testid="link-profile-support" className="flex items-center justify-between p-4 text-sm font-bold hover:bg-secondary/40">Support and guarantees <ArrowRight size={16} className="text-primary" /></Link>
+      </div>
+    </div>
+    <section className="mt-6 max-w-xl border border-border bg-card p-5">
+      <h2 className="font-bold">{isProvider ? 'Provider profile' : 'Become a provider'}</h2>
+      <p className="mt-1 text-sm text-muted-foreground">Provider profiles require admin verification before they can appear as available to customers.</p>
+      {providerProfile && <p className="mt-3 text-xs font-semibold text-muted-foreground">Verification: {providerProfile.verificationStatus}</p>}
+      <form onSubmit={saveProviderProfile} className="mt-4 space-y-4">
+        <label className="block text-sm font-semibold">About your work<textarea value={bio} onChange={(event) => setBio(event.target.value)} maxLength={2000} className="mt-2 min-h-20 w-full border border-input bg-background p-3 text-sm" /></label>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <label className="text-sm font-semibold">Experience (years)<input type="number" min="0" max="80" value={experienceYears} onChange={(event) => setExperienceYears(event.target.value)} className="mt-2 h-11 w-full border border-input bg-background px-3" /></label>
+          <label className="text-sm font-semibold">Service area<input value={serviceArea} onChange={(event) => setServiceArea(event.target.value)} maxLength={120} className="mt-2 h-11 w-full border border-input bg-background px-3" /></label>
+          <label className="text-sm font-semibold">Hourly rate (ETB)<input inputMode="decimal" value={hourlyRate} onChange={(event) => setHourlyRate(event.target.value)} pattern="\\d+(\\.\\d{1,2})?" className="mt-2 h-11 w-full border border-input bg-background px-3" /></label>
+        </div>
+        <fieldset>
+          <legend className="text-sm font-semibold">Services and skills</legend>
+          {services.isError && <p role="alert" className="mt-2 text-sm text-destructive">Could not load services. Refresh and try again.</p>}
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {serviceOptions.map((service) => <label key={service.slug} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={selectedServices.includes(service.slug)} onChange={(event) => setSelectedServices((current) => event.target.checked ? [...current, service.slug] : current.filter((slug) => slug !== service.slug))} />{service.name}</label>)}
+          </div>
+        </fieldset>
+        {providerProfile && <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={providerProfile.isAvailable} disabled={providerProfile.verificationStatus !== 'VERIFIED'} onChange={(event) => void setAvailability(event.target.checked)} />Available for work{providerProfile.verificationStatus !== 'VERIFIED' && <span className="font-normal text-muted-foreground">(after verification)</span>}</label>}
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+        <button type="submit" disabled={saving} className="min-h-11 bg-primary px-5 text-sm font-bold text-primary-foreground disabled:opacity-60">{saving ? 'Saving…' : 'Save provider profile'}</button>
+      </form>
+    </section>
+    <button type="button" onClick={() => void logout()} className="mt-5 border border-border px-4 py-2 text-sm font-semibold">Sign out</button>
+  </PageIntro>;
 }
 
 function ServiceDirectory() {
   const { language } = useLanguage();
-  return <PageIntro eyebrow="Service directory" title="Everything we fix" detail="Browse the broader Melse network for home, repair, and essential services."><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{fullServices.map((service) => <Link key={service.slug} href={`/request/${service.slug}`} data-testid={`card-directory-${service.slug}`} className="group flex items-center justify-between border border-border bg-card p-4 transition hover:-translate-y-0.5 hover:border-primary hover:shadow-[4px_4px_0_hsl(var(--accent))]"><div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-xl bg-secondary text-primary"><service.icon size={18} /></span><div><p className="text-sm font-bold">{catalogLabel(service, language)}</p><p className="mt-1 text-xs text-muted-foreground">{language === 'am' ? service.categoryAm : service.description}</p></div></div><ArrowRight size={16} className="text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" /></Link>)}</div></PageIntro>;
+  const services = useListServices();
+  const rows = Array.isArray(services.data) ? services.data : [];
+  return <PageIntro eyebrow="Service directory" title="Everything we fix" detail="Browse the currently available Melse services.">{services.isLoading ? <LoadingBlock lines={5} /> : services.isError ? <ErrorBlock retry={() => services.refetch()} /> : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{rows.map((service) => <Link key={service.slug} href={`/request/${service.slug}`} data-testid={`card-directory-${service.slug}`} className="group flex items-center justify-between border border-border bg-card p-4 transition hover:-translate-y-0.5 hover:border-primary hover:shadow-[4px_4px_0_hsl(var(--accent))]"><div className="flex items-center gap-3"><span className="grid size-11 place-items-center rounded-xl bg-secondary text-primary"><IconFor name={service.icon} size={18} /></span><div><p className="text-sm font-bold">{localized(service.name, language)}</p><p className="mt-1 text-xs text-muted-foreground">{localized(service.description, language)}</p></div></div><ArrowRight size={16} className="text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" /></Link>)}</div>}</PageIntro>;
 }
 
 function Support() {
@@ -704,14 +1065,18 @@ function AuthPage() {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
-    const response = await fetch(register ? '/api/auth/register' : '/api/auth/login', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ fullName, phoneNumber, password }) });
-    if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      setError(body.error || 'Could not sign you in.');
-      return;
+    try {
+      const response = await fetch(register ? '/api/auth/register' : '/api/auth/login', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ fullName, phoneNumber, password }) });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        setError(body.error || 'Could not sign you in.');
+        return;
+      }
+      setLocation('/');
+      window.location.reload();
+    } catch {
+      setError('Could not reach Melse. Check your connection and try again.');
     }
-    setLocation('/');
-    window.location.reload();
   };
   return <div className="mx-auto flex min-h-[70vh] max-w-md items-center"><form onSubmit={submit} className="w-full border border-border bg-card p-6 shadow-sm"><Mark /><h1 className="mt-8 text-3xl font-bold">{register ? 'Create your Melse account' : 'Welcome back'}</h1><p className="mt-2 text-sm text-muted-foreground">Use your Ethiopian phone number to continue.</p>{register && <label className="mt-6 block text-sm font-semibold">Full name<input required value={fullName} onChange={(event) => setFullName(event.target.value)} className="mt-2 h-12 w-full border border-input bg-background px-3 outline-none focus:border-primary" /></label>}<label className="mt-5 block text-sm font-semibold">Phone number<input required inputMode="tel" value={phoneNumber} onChange={(event) => setPhoneNumber(event.target.value)} placeholder="09... or +251..." className="mt-2 h-12 w-full border border-input bg-background px-3 outline-none focus:border-primary" /></label><label className="mt-5 block text-sm font-semibold">Password<input required type="password" minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} className="mt-2 h-12 w-full border border-input bg-background px-3 outline-none focus:border-primary" /></label>{error && <p className="mt-4 text-sm text-destructive">{error}</p>}<button type="submit" className="mt-6 min-h-12 w-full bg-primary px-4 text-sm font-bold text-primary-foreground">{register ? 'Create account' : 'Sign in'}</button><button type="button" onClick={() => setRegister(!register)} className="mt-4 w-full text-sm font-semibold text-primary">{register ? 'Already have an account? Sign in' : 'New to Melse? Create an account'}</button></form></div>;
 }
@@ -720,15 +1085,24 @@ function AuthGate({ children }: { children: ReactNode }) {
   const [location, setLocation] = useLocation();
   const [checking, setChecking] = useState(location !== '/auth');
   const [authenticated, setAuthenticated] = useState(location === '/auth');
+  const [user, setUser] = useState<SessionUser | null>(null);
   useEffect(() => {
-    if (location === '/auth') { setAuthenticated(true); setChecking(false); return; }
+    if (location === '/auth') { setAuthenticated(true); setChecking(false); setUser(null); return; }
     let active = true;
     setChecking(true);
-    fetch('/api/auth/me', { credentials: 'same-origin' }).then((response) => { if (active) { setAuthenticated(response.ok); setChecking(false); if (!response.ok) setLocation('/auth'); } }).catch(() => { if (active) { setAuthenticated(false); setChecking(false); setLocation('/auth'); } });
+    fetch('/api/auth/me', { credentials: 'same-origin' }).then(async (response) => {
+      const body = response.ok ? await response.json() : undefined;
+      if (active) {
+        setAuthenticated(response.ok);
+        setUser(body?.user ?? null);
+        setChecking(false);
+        if (!response.ok) setLocation('/auth');
+      }
+    }).catch(() => { if (active) { setAuthenticated(false); setUser(null); setChecking(false); setLocation('/auth'); } });
     return () => { active = false; };
   }, [location, setLocation]);
   if (checking) return <div className="grid min-h-[70vh] place-items-center text-sm text-muted-foreground">Checking your session...</div>;
-  return authenticated ? <>{children}</> : null;
+  return authenticated && user ? <authContext.Provider value={{ user, updateUser: setUser }}>{children}</authContext.Provider> : null;
 }
 
 function PageIntro({ eyebrow, title, detail, action, children }: { eyebrow: string; title: string; detail: string; action?: ReactNode; children: ReactNode }) {
@@ -737,11 +1111,80 @@ function PageIntro({ eyebrow, title, detail, action, children }: { eyebrow: stri
 }
 
 function TechnicianDashboard() {
-  const requests = useListServiceRequests();
-  const technicians = useListTechnicians();
-  const requestRows = Array.isArray(requests.data) ? requests.data : [];
-  const technicianRows = Array.isArray(technicians.data) ? technicians.data : [];
-  return <PageIntro eyebrow="Technician workspace" title="Today’s jobs" detail="A focused queue for local professionals. Demo status controls remain clearly marked." action={<Link href="/" data-testid="link-technician-customer" className="inline-flex min-h-10 items-center gap-2 border border-primary px-4 text-xs font-bold text-primary">Customer view <ArrowRight size={15} /></Link>}><div className="mb-5 grid gap-3 sm:grid-cols-3"><Metric label="Open requests" value={String(requestRows.length || '—')} /><Metric label="Available crew" value={String(technicianRows.filter((tech) => tech.available).length || '—')} /><Metric label="Area" value="Addis" /></div>{requests.isLoading ? <LoadingBlock lines={4} /> : requests.isError ? <ErrorBlock retry={() => requests.refetch()} /> : requestRows.length ? <div className="divide-y divide-border border border-border bg-card">{requestRows.map((request) => <div key={request.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center"><div className="grid size-9 place-items-center bg-secondary text-primary"><IconFor name={request.serviceSlug} size={17} /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{request.problem}</p><p className="mt-1 text-xs text-muted-foreground">{request.address} · {request.urgency || 'Flexible'}</p></div><span className="bg-secondary px-2 py-1 text-[10px] font-bold uppercase text-muted-foreground">New request</span></div>)}</div> : <EmptyBlock title="No requests in the queue" detail="New local requests will appear here." />}</PageIntro>;
+  const queryClient = useQueryClient();
+  const [locationMessage, setLocationMessage] = useState('');
+  const locationShare = useMutation({
+    mutationFn: ({ latitude, longitude }: { latitude: number; longitude: number }) => apiFetch('/provider/location', {
+      method: 'POST',
+      body: JSON.stringify({ latitude, longitude, sharingEnabled: true }),
+    }),
+    onSuccess: () => setLocationMessage('Location sharing is active for eligible emergency dispatches. Stop sharing at any time.'),
+  });
+  const stopLocationShare = useMutation({
+    mutationFn: () => apiFetch('/provider/location', { method: 'DELETE' }),
+    onSuccess: () => setLocationMessage('Location sharing has been stopped.'),
+  });
+  const requests = useQuery({
+    queryKey: ['marketplace', 'provider-requests'],
+    queryFn: () => apiFetch<Array<{ id: string; offerId: string; serviceName: string; problem: string; description: string; preferredAt: string | null; urgency: string; budgetMin: number | null; budgetMax: number | null; estimatedPriceMin: number; estimatedPriceMax: number; locationAvailable: boolean; createdAt: string }>>('/provider/requests'),
+    refetchInterval: 15000,
+  });
+  const jobs = useQuery({
+    queryKey: ['marketplace', 'provider-bookings'],
+    queryFn: () => apiFetch<Array<{ id: string; requestId: string; serviceName: string; problem: string; address: string; status: string; finalPrice: number | null; preferredAt: string | null; createdAt: string }>>('/provider/bookings'),
+  });
+  const [quotes, setQuotes] = useState<Record<string, string>>({});
+  const response = useMutation({
+    mutationFn: ({ id, decision }: { id: string; decision: 'ACCEPT' | 'DECLINE' }) => apiFetch(`/provider/requests/${id}/respond`, {
+      method: 'POST',
+      body: JSON.stringify({
+        decision,
+        ...(quotes[id] ? { quotedPrice: Number(quotes[id]) } : {}),
+      }),
+    }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['marketplace', 'provider-requests'] });
+      await queryClient.invalidateQueries({ queryKey: ['marketplace', 'provider-bookings'] });
+      await queryClient.invalidateQueries({ queryKey: ['marketplace', 'conversations'] });
+    },
+  });
+  const update = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) => apiFetch(`/bookings/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['marketplace', 'provider-bookings'] }),
+  });
+  const requestRows = requests.data ?? [];
+  const jobRows = jobs.data ?? [];
+  const nextProviderStatus: Record<string, string> = {
+    ACCEPTED: 'TECHNICIAN_EN_ROUTE',
+    TECHNICIAN_EN_ROUTE: 'ARRIVED',
+    ARRIVED: 'IN_PROGRESS',
+    IN_PROGRESS: 'COMPLETED',
+  };
+  const shareLocation = () => {
+    setLocationMessage('');
+    if (!navigator.geolocation) {
+      setLocationMessage('This browser does not support location sharing.');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => locationShare.mutate({ latitude: coords.latitude, longitude: coords.longitude }),
+      (error) => setLocationMessage(error.message || 'Location access was not granted.'),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    );
+  };
+  return <PageIntro eyebrow="Provider workspace" title="Your jobs" detail="Respond to active offers and update each assigned job as it progresses." action={<Link href="/" data-testid="link-technician-customer" className="inline-flex min-h-10 items-center gap-2 border border-primary px-4 text-xs font-bold text-primary">Customer view <ArrowRight size={15} /></Link>}>
+    <div className="mb-5 grid gap-3 sm:grid-cols-2"><Metric label="Offers to review" value={String(requestRows.length)} /><Metric label="Assigned jobs" value={String(jobRows.filter((job) => !['COMPLETED', 'CANCELLED', 'DISPUTED', 'PAID', 'RATED'].includes(job.status)).length)} /></div>
+    <div className="mb-7 border border-border bg-secondary/50 p-4"><p className="text-sm font-bold">Emergency location sharing</p><p className="mt-1 text-xs text-muted-foreground">Only share your precise location when you choose. It is used for dispatch eligibility and only shown to an assigned customer while en route or providing service.</p><div className="mt-3 flex flex-wrap gap-2"><button onClick={shareLocation} disabled={locationShare.isPending} className="min-h-10 bg-primary px-4 text-xs font-bold text-primary-foreground disabled:opacity-50">Share current location</button><button onClick={() => stopLocationShare.mutate()} disabled={stopLocationShare.isPending} className="min-h-10 border border-border px-4 text-xs font-bold">Stop sharing</button></div>{locationMessage && <p role="status" className="mt-2 text-xs">{locationMessage}</p>}</div>
+    <section className="mb-8"><h2 className="mb-3 text-lg font-bold">New offers</h2>{requests.isLoading ? <LoadingBlock lines={3} /> : requests.isError ? <ErrorBlock retry={() => requests.refetch()} /> : requestRows.length ? <div className="space-y-3">{requestRows.map((request) => <article key={request.id} className="border border-border bg-card p-4"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-bold">{request.serviceName}: {request.problem}</p><span className="text-xs text-muted-foreground">{titleCase(request.urgency)}</span></div><p className="mt-2 text-sm text-muted-foreground">{request.description}</p><p className="mt-2 text-xs text-muted-foreground">Estimate {money(request.estimatedPriceMin)}–{money(request.estimatedPriceMax)}{request.budgetMax !== null ? ` · Customer budget up to ${money(request.budgetMax)}` : ''}{request.locationAvailable ? ' · Location provided' : ''}</p>
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row"><label className="sr-only" htmlFor={`quote-${request.id}`}>Your total quote in ETB</label><input id={`quote-${request.id}`} type="number" min="0.01" step="0.01" value={quotes[request.id] ?? ''} onChange={(event) => setQuotes((current) => ({ ...current, [request.id]: event.target.value }))} placeholder="Total quote (required for hourly/quote services)" className="min-h-10 min-w-0 flex-1 border border-input bg-background px-3 text-sm" /><button onClick={() => response.mutate({ id: request.id, decision: 'ACCEPT' })} disabled={response.isPending} className="min-h-10 bg-primary px-4 text-sm font-bold text-primary-foreground disabled:opacity-50">Accept</button><button onClick={() => response.mutate({ id: request.id, decision: 'DECLINE' })} disabled={response.isPending} className="min-h-10 border border-border px-4 text-sm font-bold disabled:opacity-50">Decline</button></div>
+    </article>)}</div> : <EmptyBlock title="No active offers" detail="Matching customer requests will appear here while offers remain active." />}</section>
+    {response.isError && <p role="alert" className="mb-4 text-sm text-destructive">{response.error.message}</p>}
+    <section><h2 className="mb-3 text-lg font-bold">Assigned jobs</h2>{jobs.isLoading ? <LoadingBlock lines={3} /> : jobs.isError ? <ErrorBlock retry={() => jobs.refetch()} /> : jobRows.length ? <div className="divide-y divide-border border border-border bg-card">{jobRows.map((job) => <div key={job.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center"><div className="min-w-0 flex-1"><p className="font-bold">{job.serviceName}: {job.problem}</p><p className="mt-1 text-xs text-muted-foreground">{job.address} · {job.finalPrice === null ? 'Price pending' : money(job.finalPrice)}</p><p className="mt-1 text-xs font-semibold">{titleCase(job.status)}</p></div>{nextProviderStatus[job.status] && <button onClick={() => update.mutate({ id: job.id, status: nextProviderStatus[job.status] })} disabled={update.isPending} className="min-h-10 bg-primary px-4 text-xs font-bold text-primary-foreground disabled:opacity-50">Mark {titleCase(nextProviderStatus[job.status])}</button>}<Link href={`/booking/${job.id}`} className="inline-flex min-h-10 items-center border border-border px-4 text-xs font-bold">Details</Link></div>)}</div> : <EmptyBlock title="No assigned jobs" detail="Accepted requests and customer-selected bookings will appear here." />}</section>
+    {update.isError && <p role="alert" className="mt-4 text-sm text-destructive">{update.error.message}</p>}
+  </PageIntro>;
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
@@ -749,17 +1192,59 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 function AdminDashboard() {
-  const summary = useGetDashboardSummary();
-  const requests = useListServiceRequests();
-  const technicians = useListTechnicians();
-  const rows = Array.isArray(requests.data) ? requests.data : [];
-  const techRows = Array.isArray(technicians.data) ? technicians.data : [];
-  return <PageIntro eyebrow="Operations workspace" title="Service desk" detail="Coordinate requests, availability, and follow-up across Addis Ababa." action={<Link href="/" data-testid="link-admin-customer" className="inline-flex min-h-10 items-center gap-2 border border-primary px-4 text-xs font-bold text-primary">Customer view <ArrowRight size={15} /></Link>}><div className="mb-7 grid gap-3 sm:grid-cols-3"><Metric label="Requests" value={String(rows.length || '—')} /><Metric label="Technicians" value={String(techRows.length || '—')} /><Metric label="Active booking" value={summary.data?.activeBooking ? '1 live' : 'None'} /></div><div className="border border-border bg-card"><div className="flex items-center justify-between border-b border-border p-4"><div><p className="mono-font text-[10px] uppercase tracking-[.14em] text-muted-foreground">Queue</p><h2 className="mt-1 font-bold">Requests needing a desk</h2></div><span className="text-xs text-muted-foreground">Live API view</span></div>{requests.isLoading ? <div className="p-4"><LoadingBlock lines={3} /></div> : requests.isError ? <div className="p-4"><ErrorBlock retry={() => requests.refetch()} /></div> : rows.length ? rows.map((request) => <div key={request.id} className="flex flex-col gap-3 border-b border-border p-4 last:border-0 md:flex-row md:items-center"><div className="min-w-0 flex-1"><p className="font-bold">{request.problem}</p><p className="mt-1 text-xs text-muted-foreground">{request.address} · {dateLabel(request.createdAt)}</p></div><div className="flex items-center gap-3"><span className="bg-accent/20 px-2 py-1 text-[10px] font-bold text-primary">{request.urgency || 'Flexible'}</span><Link href={`/technicians/${request.id}`} data-testid={`link-admin-request-${request.id}`} className="grid size-9 place-items-center border border-border text-primary"><ArrowRight size={16} /></Link></div></div>) : <div className="p-4"><EmptyBlock title="Queue is clear" detail="No customer requests need attention right now." /></div>}</div></PageIntro>;
+  const client = useQueryClient();
+  const users = useQuery({ queryKey: ['admin', 'users'], queryFn: () => apiFetch<Array<{ id: string; fullName: string; phoneNumber: string; isActive: boolean; roles: string[] }>>('/admin/users') });
+  const providers = useQuery({ queryKey: ['admin', 'providers'], queryFn: () => apiFetch<Array<{ id: string; fullName: string; phoneNumber: string; verificationStatus: string; isAvailable: boolean }>>('/admin/verifications') });
+  const disputes = useQuery({ queryKey: ['admin', 'disputes'], queryFn: () => apiFetch<Array<{ dispute: { id: string; reason: string; description: string; status: string }; customerName: string; providerName: string | null; bookingStatus: string }>>('/admin/disputes') });
+  const payouts = useQuery({ queryKey: ['admin', 'payouts'], queryFn: () => apiFetch<Array<{ payout: { id: string; amount: string; status: string }; providerName: string; phoneNumber: string }>>('/admin/payouts') });
+  const mutateAndRefresh = async (paths: string[]) => {
+    await Promise.all(paths.map((path) => client.invalidateQueries({ queryKey: ['admin', path] })));
+  };
+  const accountStatus = useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => apiFetch(`/admin/users/${id}/status`, { method: 'PATCH', body: JSON.stringify({ isActive }) }),
+    onSuccess: () => mutateAndRefresh(['users']),
+  });
+  const role = useMutation({
+    mutationFn: ({ id, role, enabled }: { id: string; role: 'CUSTOMER' | 'PROVIDER'; enabled: boolean }) => apiFetch(`/admin/users/${id}/roles`, { method: 'PATCH', body: JSON.stringify({ role, enabled }) }),
+    onSuccess: () => mutateAndRefresh(['users', 'providers']),
+  });
+  const verification = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) => apiFetch(`/admin/verifications/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+    onSuccess: () => mutateAndRefresh(['providers']),
+  });
+  const disputeDecision = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) => apiFetch(`/admin/disputes/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, resolution: status === 'UNDER_REVIEW' ? 'The Melse operations team is reviewing the evidence.' : 'The Melse operations team recorded this resolution.' }),
+    }),
+    onSuccess: () => mutateAndRefresh(['disputes']),
+  });
+  const payoutDecision = useMutation({
+    mutationFn: ({ id, decision, transferReference, proofUrl }: { id: string; decision: 'COMPLETE' | 'REJECT'; transferReference: string; proofUrl: string }) => apiFetch(`/admin/payouts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        decision,
+        note: decision === 'COMPLETE' ? 'Manual bank transfer recorded by an administrator.' : 'Payout request rejected after administrator review.',
+        ...(decision === 'COMPLETE' ? { transferReference, proofUrl } : {}),
+      }),
+    }),
+    onSuccess: () => mutateAndRefresh(['payouts']),
+  });
+  const [transfer, setTransfer] = useState<Record<string, { reference: string; proofUrl: string }>>({});
+  return <PageIntro eyebrow="Operations workspace" title="Administration" detail="Manage accounts, provider verification, disputes, and manually recorded bank payouts." action={<Link href="/" data-testid="link-admin-customer" className="inline-flex min-h-10 items-center gap-2 border border-primary px-4 text-xs font-bold text-primary">Customer view <ArrowRight size={15} /></Link>}>
+    {(users.isError || providers.isError || disputes.isError || payouts.isError) && <p role="alert" className="mb-4 text-sm text-destructive">One or more admin queues could not load. Refresh to try again.</p>}
+    {(accountStatus.isError || role.isError || verification.isError || disputeDecision.isError || payoutDecision.isError) && <p role="alert" className="mb-4 text-sm text-destructive">{accountStatus.error?.message || role.error?.message || verification.error?.message || disputeDecision.error?.message || payoutDecision.error?.message}</p>}
+    <div className="mb-7 grid gap-3 sm:grid-cols-4"><Metric label="Users" value={String(users.data?.length ?? '—')} /><Metric label="Provider profiles" value={String(providers.data?.length ?? '—')} /><Metric label="Open disputes" value={String(disputes.data?.length ?? '—')} /><Metric label="Pending payouts" value={String(payouts.data?.length ?? '—')} /></div>
+    <section className="mb-8"><h2 className="mb-3 text-lg font-bold">Accounts</h2>{users.isLoading ? <LoadingBlock lines={3} /> : <div className="divide-y divide-border border border-border bg-card">{users.data?.map((account) => <div key={account.id} className="flex flex-wrap items-center gap-3 p-4"><div className="min-w-0 flex-1"><p className="font-bold">{account.fullName}</p><p className="mt-1 text-xs text-muted-foreground">{account.phoneNumber} · {account.roles.join(', ')}</p></div><button onClick={() => role.mutate({ id: account.id, role: 'PROVIDER', enabled: !account.roles.includes('PROVIDER') })} className="min-h-9 border border-border px-3 text-xs font-semibold">{account.roles.includes('PROVIDER') ? 'Remove provider role' : 'Grant provider role'}</button><button onClick={() => accountStatus.mutate({ id: account.id, isActive: !account.isActive })} className="min-h-9 border border-destructive/50 px-3 text-xs font-semibold text-destructive">{account.isActive ? 'Suspend' : 'Reactivate'}</button></div>)}</div>}</section>
+    <section className="mb-8"><h2 className="mb-3 text-lg font-bold">Provider verification</h2>{providers.isLoading ? <LoadingBlock lines={3} /> : <div className="divide-y divide-border border border-border bg-card">{providers.data?.map((provider) => <div key={provider.id} className="flex flex-wrap items-center gap-3 p-4"><div className="min-w-0 flex-1"><p className="font-bold">{provider.fullName}</p><p className="mt-1 text-xs text-muted-foreground">{provider.phoneNumber} · {titleCase(provider.verificationStatus)}</p></div>{['UNDER_REVIEW', 'VERIFIED', 'REJECTED', 'SUSPENDED'].map((status) => <button key={status} onClick={() => verification.mutate({ id: provider.id, status })} disabled={provider.verificationStatus === status} className="min-h-9 border border-border px-3 text-xs font-semibold disabled:opacity-40">{titleCase(status)}</button>)}</div>)}</div>}</section>
+    <section className="mb-8"><h2 className="mb-3 text-lg font-bold">Dispute review</h2>{disputes.isLoading ? <LoadingBlock lines={2} /> : disputes.data?.length ? <div className="space-y-3">{disputes.data.map(({ dispute, customerName, providerName }) => <article key={dispute.id} className="border border-border bg-card p-4"><p className="font-bold">{titleCase(dispute.reason)} · {titleCase(dispute.status)}</p><p className="mt-1 text-xs text-muted-foreground">{customerName} / {providerName ?? 'Provider'} · {dispute.description}</p><div className="mt-3 flex flex-wrap gap-2">{[['UNDER_REVIEW', 'Review'], ['RESOLVED_CUSTOMER', 'Resolve for customer'], ['RESOLVED_PROVIDER', 'Resolve for provider'], ['CLOSED', 'Close']].map(([status, label]) => <button key={status} onClick={() => disputeDecision.mutate({ id: dispute.id, status })} disabled={disputeDecision.isPending} className="min-h-9 border border-border px-3 text-xs font-semibold">{label}</button>)}</div></article>)}</div> : <EmptyBlock title="No open disputes" detail="New customer and provider disputes will be shown here." />}</section>
+    <section><h2 className="mb-3 text-lg font-bold">Payout requests</h2>{payouts.isLoading ? <LoadingBlock lines={2} /> : payouts.data?.length ? <div className="space-y-3">{payouts.data.map(({ payout, providerName, phoneNumber }) => <article key={payout.id} className="border border-border bg-card p-4"><p className="font-bold">{providerName} · {money(Number(payout.amount))}</p><p className="mt-1 text-xs text-muted-foreground">{phoneNumber} · {payout.status} · Manual bank transfer required</p><div className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto_auto]"><input aria-label="Bank transfer reference" value={transfer[payout.id]?.reference ?? ''} onChange={(event) => setTransfer((current) => ({ ...current, [payout.id]: { reference: event.target.value, proofUrl: current[payout.id]?.proofUrl ?? '' } }))} placeholder="Transfer reference" className="min-h-10 border border-input bg-background px-3 text-sm" /><input aria-label="Secure transfer proof URL" type="url" value={transfer[payout.id]?.proofUrl ?? ''} onChange={(event) => setTransfer((current) => ({ ...current, [payout.id]: { reference: current[payout.id]?.reference ?? '', proofUrl: event.target.value } }))} placeholder="HTTPS proof URL" className="min-h-10 border border-input bg-background px-3 text-sm" /><button onClick={() => payoutDecision.mutate({ id: payout.id, decision: 'COMPLETE', transferReference: transfer[payout.id]?.reference ?? '', proofUrl: transfer[payout.id]?.proofUrl ?? '' })} className="min-h-10 bg-primary px-3 text-xs font-bold text-primary-foreground">Record transfer</button><button onClick={() => payoutDecision.mutate({ id: payout.id, decision: 'REJECT', transferReference: '', proofUrl: '' })} className="min-h-10 border border-destructive px-3 text-xs font-bold text-destructive">Reject</button></div></article>)}</div> : <EmptyBlock title="No payout requests" detail="Verified provider payout requests will appear here." />}</section>
+  </PageIntro>;
 }
 
 function Router() {
   const [location] = useLocation();
-return <ErrorBoundary resetKey={location}><Switch><Route path="/auth" component={AuthPage} /><Route><AuthGate><Shell><Switch><Route path="/" component={Home} /><Route path="/jobs" component={Jobs} /><Route path="/my-jobs" component={Jobs} /><Route path="/messages" component={Messages} /><Route path="/profile" component={Profile} /><Route path="/support" component={Support} /><Route path="/services" component={ServiceDirectory} /><Route path="/request/:serviceSlug" component={RequestFlow} /><Route path="/technicians/:requestId" component={TechnicianPicker} /><Route path="/job/:id" component={RequestDetails} /><Route path="/jobs/:id" component={RequestDetails} /><Route path="/booking/:id" component={BookingPage} /><Route path="/technician" component={TechnicianDashboard} /><Route path="/admin" component={AdminDashboard} /><Route component={NotFound} /></Switch></Shell></AuthGate></Route></Switch></ErrorBoundary>;
+return <ErrorBoundary resetKey={location}><Switch><Route path="/auth" component={AuthPage} /><Route><AuthGate><Shell><Switch><Route path="/" component={Home} /><Route path="/jobs" component={Jobs} /><Route path="/my-jobs" component={Jobs} /><Route path="/messages" component={Messages} /><Route path="/profile" component={Profile} /><Route path="/support" component={Support} /><Route path="/emergency" component={EmergencyPage} /><Route path="/emergency/:id" component={EmergencyPage} /><Route path="/services" component={ServiceDirectory} /><Route path="/request/:serviceSlug" component={RequestFlow} /><Route path="/technicians/:requestId" component={TechnicianPicker} /><Route path="/job/:id" component={RequestDetails} /><Route path="/jobs/:id" component={RequestDetails} /><Route path="/booking/:id" component={BookingPage} /><Route path="/technician" component={TechnicianDashboard} /><Route path="/admin" component={AdminDashboard} /><Route component={NotFound} /></Switch></Shell></AuthGate></Route></Switch></ErrorBoundary>;
 }
 
 function App() {

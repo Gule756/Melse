@@ -1,4 +1,6 @@
-import type { BookingStatus } from "./melse-store";
+import { jobStatusEnum } from "@workspace/db";
+
+export type BookingStatus = (typeof jobStatusEnum.enumValues)[number];
 
 export const allowedStateTransitions: Record<BookingStatus, BookingStatus[]> = {
   REQUESTED: ["SEARCHING", "CANCELLED"],
@@ -9,9 +11,9 @@ export const allowedStateTransitions: Record<BookingStatus, BookingStatus[]> = {
   ARRIVED: ["IN_PROGRESS", "CANCELLED"],
   IN_PROGRESS: ["COMPLETED", "DISPUTED"],
   COMPLETED: ["CUSTOMER_CONFIRMED", "DISPUTED"],
-  CUSTOMER_CONFIRMED: ["PAID"],
-  PAID: ["RATED"],
-  RATED: [],
+  CUSTOMER_CONFIRMED: ["PAID", "DISPUTED"],
+  PAID: ["RATED", "DISPUTED"],
+  RATED: ["DISPUTED"],
   CANCELLED: [],
   DISPUTED: ["PAID", "CANCELLED"],
   REFUNDED: [],

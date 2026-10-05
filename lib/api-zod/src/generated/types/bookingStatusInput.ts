@@ -9,4 +9,6 @@ import type { BookingStatusInputStatus } from './bookingStatusInputStatus';
 
 export interface BookingStatusInput {
   status: BookingStatusInputStatus;
+  /** @exclusiveMinimum 0 */
+  quotedPrice?: number;
 }

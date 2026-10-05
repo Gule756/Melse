@@ -30,6 +30,18 @@ tags:
     description: Admin controls and operations
   - name: payments
     description: Payment provider abstraction
+  - name: authentication
+    description: Session authentication and account identity
+  - name: provider
+    description: Provider services, availability, offers, and jobs
+  - name: emergency
+    description: Safety-gated emergency dispatch
+  - name: communications
+    description: Persistent booking conversations and notifications
+  - name: trust
+    description: Reviews and disputes
+  - name: payouts
+    description: Provider earnings and payout operations
 paths:
   /bookings/{id}/payment:
     post:
@@ -273,6 +285,480 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BusinessAccount"
+  /auth/register:
+    post:
+      operationId: registerUserApi
+      tags: [authentication]
+      summary: Register a customer account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fullName, phoneNumber, password]
+              properties:
+                fullName: { type: string, minLength: 2, maxLength: 100 }
+                phoneNumber: { type: string, minLength: 9, maxLength: 20 }
+                password: { type: string, minLength: 8, maxLength: 256 }
+      responses:
+        "201": { description: Account registered and session created }
+        "409": { description: Phone number is already registered }
+  /auth/login:
+    post:
+      operationId: loginUserApi
+      tags: [authentication]
+      summary: Start an authenticated session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phoneNumber, password]
+              properties:
+                phoneNumber: { type: string }
+                password: { type: string }
+      responses:
+        "200": { description: Authenticated session cookie issued }
+        "401": { description: Invalid credentials }
+  /auth/logout:
+    post:
+      operationId: logoutUser
+      tags: [authentication]
+      summary: End the authenticated session
+      responses:
+        "204": { description: Session revoked }
+  /auth/me:
+    get:
+      operationId: getCurrentUserApi
+      tags: [authentication]
+      summary: Get the current user and roles
+      responses:
+        "200": { description: Current authenticated identity }
+        "401": { description: Authentication required }
+  /provider/services:
+    get:
+      operationId: listProviderServices
+      tags: [provider]
+      summary: List the current provider's services and prices
+      responses:
+        "200": { description: Provider service catalog }
+    put:
+      operationId: updateProviderServicesApi
+      tags: [provider]
+      summary: Replace the current provider's services and pricing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [services]
+              properties:
+                services:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: object
+                    required: [categorySlug, pricingModel, amount]
+                    properties:
+                      categorySlug: { type: string }
+                      pricingModel: { type: string, enum: [FIXED, HOURLY, QUOTE] }
+                      amount: { type: number, nullable: true, minimum: 0 }
+                      minimumCharge: { type: number, nullable: true, minimum: 0 }
+      responses:
+        "200": { description: Provider services persisted }
+  /provider/availability:
+    get:
+      operationId: getProviderAvailability
+      tags: [provider]
+      summary: List weekly provider availability
+      responses:
+        "200": { description: Weekly availability }
+    put:
+      operationId: updateProviderAvailabilityApi
+      tags: [provider]
+      summary: Replace weekly provider availability
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [availability]
+              properties:
+                availability:
+                  type: array
+                  maxItems: 42
+                  items:
+                    type: object
+                    required: [dayOfWeek, startsAt, endsAt, isAvailable]
+                    properties:
+                      dayOfWeek: { type: number, minimum: 0, maximum: 6 }
+                      startsAt: { type: string, pattern: "^(?:[01]\\d|2[0-3]):[0-5]\\d$" }
+                      endsAt: { type: string, pattern: "^(?:[01]\\d|2[0-3]):[0-5]\\d$" }
+                      isAvailable: { type: boolean }
+      responses:
+        "200": { description: Weekly availability persisted }
+  /provider/requests:
+    get:
+      operationId: listProviderRequests
+      tags: [provider]
+      summary: List active offers for the current provider
+      responses:
+        "200": { description: Matching request offers }
+  /provider/requests/{id}/respond:
+    post:
+      operationId: respondToProviderRequestApi
+      tags: [provider]
+      summary: Accept or decline an active service offer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [ACCEPT, DECLINE] }
+                quotedPrice: { type: number, exclusiveMinimum: 0 }
+                message: { type: string, maxLength: 1000 }
+      responses:
+        "200": { description: Offer response persisted }
+        "409": { description: "Offer expired, unavailable, or invalid" }
+  /provider/bookings:
+    get:
+      operationId: listProviderBookings
+      tags: [provider]
+      summary: List jobs assigned to the current provider
+      responses:
+        "200": { description: Provider's bookings }
+  /emergency/requests:
+    post:
+      operationId: createEmergencyRequestApi
+      tags: [emergency]
+      summary: Create a safety-acknowledged emergency dispatch
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 120 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [serviceSlug, emergencyType, problem, description, address, latitude, longitude, safetyAcknowledged]
+              properties:
+                serviceSlug: { type: string }
+                emergencyType: { type: string, enum: [LOCKSMITH, PLUMBING, ELECTRICAL, ROADSIDE, OTHER] }
+                problem: { type: string, minLength: 2, maxLength: 200 }
+                description: { type: string, minLength: 5, maxLength: 3000 }
+                address: { type: string, minLength: 4, maxLength: 1000 }
+                latitude: { type: number, minimum: -90, maximum: 90 }
+                longitude: { type: number, minimum: -180, maximum: 180 }
+                safetyAcknowledged: { type: boolean, const: true }
+      responses:
+        "201": { description: Emergency dispatch created }
+        "503": { description: No eligible nearby provider is available }
+  /emergency/requests/{id}:
+    get:
+      operationId: getEmergencyRequestApi
+      tags: [emergency]
+      summary: Get an emergency dispatch visible to its participants
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Dispatch and consent-based tracking state }
+        "404": { description: Dispatch not found }
+  /provider/location:
+    post:
+      operationId: shareProviderLocationApi
+      tags: [emergency]
+      summary: Share current provider location after explicit opt-in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [latitude, longitude, sharingEnabled]
+              properties:
+                latitude: { type: number, minimum: -90, maximum: 90 }
+                longitude: { type: number, minimum: -180, maximum: 180 }
+                sharingEnabled: { type: boolean, const: true }
+      responses:
+        "200": { description: Location sharing updated }
+    delete:
+      operationId: stopProviderLocationSharing
+      tags: [emergency]
+      summary: Stop sharing provider location
+      responses:
+        "204": { description: Location removed }
+  /conversations:
+    get:
+      operationId: listConversations
+      tags: [communications]
+      summary: List booking conversations for the current user
+      responses:
+        "200": { description: Authorized conversations }
+  /conversations/{id}/messages:
+    get:
+      operationId: listConversationMessagesApi
+      tags: [communications]
+      summary: Read messages in an authorized booking conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: before
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: number, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200": { description: Persistent messages }
+        "404": { description: Conversation not found }
+    post:
+      operationId: sendConversationMessageApi
+      tags: [communications]
+      summary: Send a message in an authorized booking conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                body: { type: string, maxLength: 4000 }
+                attachmentUrl: { type: string, description: HTTPS attachment URL }
+      responses:
+        "201": { description: Message persisted }
+  /notifications/{id}/read:
+    patch:
+      operationId: markNotificationReadApi
+      tags: [communications]
+      summary: Mark the current user's notification as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Notification marked as read }
+  /providers/{id}/reviews:
+    get:
+      operationId: listProviderReviewsApi
+      tags: [trust]
+      summary: List public reviews for a provider
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Provider reviews }
+  /bookings/{id}/reviews:
+    post:
+      operationId: createBookingReviewApi
+      tags: [trust]
+      summary: Review an eligible completed booking once
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rating]
+              properties:
+                rating: { type: number, minimum: 1, maximum: 5 }
+                comment: { type: string, maxLength: 2000 }
+      responses:
+        "201": { description: Review created }
+  /bookings/{id}/disputes:
+    post:
+      operationId: openBookingDisputeApi
+      tags: [trust]
+      summary: Open a participant dispute with optional secure evidence links
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason, description]
+              properties:
+                reason: { type: string, enum: [QUALITY, NO_SHOW, SAFETY, PRICE, DAMAGE, OTHER] }
+                description: { type: string, minLength: 10, maxLength: 5000 }
+                evidenceUrls: { type: array, maxItems: 10, items: { type: string, description: HTTPS evidence URL } }
+      responses:
+        "201": { description: Dispute created }
+  /admin/disputes:
+    get:
+      operationId: listAdminDisputes
+      tags: [admin, trust]
+      summary: List unresolved disputes
+      responses:
+        "200": { description: Admin dispute queue }
+  /admin/disputes/{id}:
+    patch:
+      operationId: resolveAdminDisputeApi
+      tags: [admin, trust]
+      summary: Record an admin dispute decision
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status, resolution]
+              properties:
+                status: { type: string, enum: [UNDER_REVIEW, RESOLVED_CUSTOMER, RESOLVED_PROVIDER, CLOSED] }
+                resolution: { type: string, minLength: 10, maxLength: 5000 }
+      responses:
+        "200": { description: Dispute updated }
+  /admin/users:
+    get:
+      operationId: listAdminUsers
+      tags: [admin]
+      summary: List users and server-assigned roles
+      responses:
+        "200": { description: Admin user list }
+  /admin/users/{id}/status:
+    patch:
+      operationId: updateAdminUserStatusApi
+      tags: [admin]
+      summary: Suspend or reactivate a user account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [isActive]
+              properties:
+                isActive: { type: boolean }
+      responses:
+        "200": { description: Account status updated and sessions revoked when suspended }
+  /admin/users/{id}/roles:
+    patch:
+      operationId: updateAdminUserRoleApi
+      tags: [admin]
+      summary: Grant or revoke a customer/provider role
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { type: string, enum: [CUSTOMER, PROVIDER] }
+                enabled: { type: boolean, default: true }
+      responses:
+        "204": { description: User role updated }
+  /provider/payouts:
+    get:
+      operationId: listProviderPayouts
+      tags: [payouts]
+      summary: View provider earnings and payout history
+      responses:
+        "200": { description: Earnings and payouts; transfers are manual }
+    post:
+      operationId: requestProviderPayoutApi
+      tags: [payouts]
+      summary: Request a balance-backed provider payout
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 120 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount: { type: number, exclusiveMinimum: 0 }
+      responses:
+        "201": { description: Payout request recorded; no automatic transfer is made }
+  /admin/payouts:
+    get:
+      operationId: listAdminPayouts
+      tags: [admin, payouts]
+      summary: List unprocessed provider payout requests
+      responses:
+        "200": { description: Pending and processing payout requests }
+  /admin/payouts/{id}:
+    patch:
+      operationId: processAdminPayoutApi
+      tags: [admin, payouts]
+      summary: Record or reject a manual bank transfer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision, note]
+              properties:
+                decision: { type: string, enum: [COMPLETE, REJECT] }
+                transferReference: { type: string, maxLength: 120 }
+                proofUrl: { type: string, description: HTTPS transfer proof URL }
+                note: { type: string, minLength: 5, maxLength: 1000 }
+      responses:
+        "200": { description: Manual payout status persisted }
   /healthz:
     get:
       operationId: healthCheck
@@ -291,6 +777,11 @@ paths:
       operationId: listServices
       tags: [services]
       summary: List available services
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema: { type: string, maxLength: 120 }
       responses:
         "200":
           description: Service catalog
@@ -316,6 +807,16 @@ paths:
           required: false
           schema:
             type: string
+        - name: latitude
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: longitude
+          in: query
+          required: false
+          schema:
+            type: number
       responses:
         "200":
           description: Matching verified technicians
@@ -536,6 +1037,15 @@ components:
         description: { type: string }
         address: { type: string }
         urgency: { type: string }
+        preferredAt: { type: string, format: date-time }
+        budgetMin: { type: number, minimum: 0 }
+        budgetMax: { type: number, minimum: 0 }
+        latitude: { type: number, minimum: -90, maximum: 90 }
+        longitude: { type: number, minimum: -180, maximum: 180 }
+        problemPhotos:
+          type: array
+          maxItems: 5
+          items: { type: string }
     BusinessRegistrationInput:
       type: object
       required: [phoneNumber, password, fullName, businessName]
@@ -576,13 +1086,22 @@ components:
       allOf:
         - $ref: "#/components/schemas/ServiceRequestInput"
         - type: object
-          required: [id, createdAt, priceMin, priceMax, arrival]
+          required: [id, status, createdAt, priceMin, priceMax, arrival]
           properties:
             id: { type: string }
+            status: { type: string }
             createdAt: { type: string }
             priceMin: { type: number }
             priceMax: { type: number }
             arrival: { type: string }
+            preferredAt: { type: string, format: date-time, nullable: true }
+            latitude: { type: number, nullable: true }
+            longitude: { type: number, nullable: true }
+            budgetMin: { type: number, nullable: true }
+            budgetMax: { type: number, nullable: true }
+            problemPhotos:
+              type: array
+              items: { type: string }
     BookingInput:
       type: object
       required: [requestId, technicianId]
@@ -591,7 +1110,7 @@ components:
         technicianId: { type: string }
     Booking:
       type: object
-      required: [id, requestId, technicianId, technicianName, serviceName, address, status, priceMin, priceMax, eta, createdAt, progress]
+      required: [id, requestId, technicianId, technicianName, serviceName, address, status, priceMin, priceMax, finalPrice, eta, createdAt, progress]
       properties:
         id: { type: string }
         requestId: { type: string }
@@ -604,6 +1123,7 @@ components:
           enum: [REQUESTED, SEARCHING, ASSIGNED, ACCEPTED, TECHNICIAN_EN_ROUTE, ARRIVED, IN_PROGRESS, COMPLETED, CUSTOMER_CONFIRMED, PAID, RATED, CANCELLED, DISPUTED, REFUNDED, REASSIGNED]
         priceMin: { type: number }
         priceMax: { type: number }
+        finalPrice: { type: number, nullable: true }
         eta: { type: string }
         createdAt: { type: string }
         progress: { type: number }
@@ -614,6 +1134,7 @@ components:
         status:
           type: string
           enum: [REQUESTED, SEARCHING, ASSIGNED, ACCEPTED, TECHNICIAN_EN_ROUTE, ARRIVED, IN_PROGRESS, COMPLETED, CUSTOMER_CONFIRMED, PAID, RATED, CANCELLED, DISPUTED, REFUNDED, REASSIGNED]
+        quotedPrice: { type: number, exclusiveMinimum: 0 }
     DashboardSummary:
       type: object
       required: [activeBooking, recentRequests, savedAddress, trustStats]
@@ -777,4 +1298,3 @@ components:
             verifiedProfessionals: { type: string }
             averageRating: { type: string }
             guarantee: { type: string }
-

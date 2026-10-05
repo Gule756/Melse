@@ -263,6 +263,455 @@ export const GetBusinessProfileResponse = zod.object({
 
 
 /**
+ * @summary Register a customer account
+ */
+export const registerUserApiBodyFullNameMin = 2;
+export const registerUserApiBodyFullNameMax = 100;
+
+export const registerUserApiBodyPhoneNumberMin = 9;
+export const registerUserApiBodyPhoneNumberMax = 20;
+
+export const registerUserApiBodyPasswordMin = 8;
+export const registerUserApiBodyPasswordMax = 256;
+
+
+
+export const RegisterUserApiBody = zod.object({
+  "fullName": zod.string().min(registerUserApiBodyFullNameMin).max(registerUserApiBodyFullNameMax),
+  "phoneNumber": zod.string().min(registerUserApiBodyPhoneNumberMin).max(registerUserApiBodyPhoneNumberMax),
+  "password": zod.string().min(registerUserApiBodyPasswordMin).max(registerUserApiBodyPasswordMax)
+})
+
+export const RegisterUserApiResponse = zod.void()
+
+
+/**
+ * @summary Start an authenticated session
+ */
+export const LoginUserApiBody = zod.object({
+  "phoneNumber": zod.string(),
+  "password": zod.string()
+})
+
+export const LoginUserApiResponse = zod.unknown()
+
+
+/**
+ * @summary End the authenticated session
+ */
+export const LogoutUserResponse = zod.void()
+
+
+/**
+ * @summary Get the current user and roles
+ */
+export const GetCurrentUserApiResponse = zod.unknown()
+
+
+/**
+ * @summary List the current provider's services and prices
+ */
+export const ListProviderServicesResponse = zod.unknown()
+
+
+/**
+ * @summary Replace the current provider's services and pricing
+ */
+export const updateProviderServicesApiBodyServicesItemAmountMin = 0;
+
+export const updateProviderServicesApiBodyServicesItemMinimumChargeMin = 0;
+
+export const updateProviderServicesApiBodyServicesMax = 100;
+
+
+
+export const UpdateProviderServicesApiBody = zod.object({
+  "services": zod.array(zod.object({
+  "categorySlug": zod.string(),
+  "pricingModel": zod.enum(['FIXED', 'HOURLY', 'QUOTE']),
+  "amount": zod.number().min(updateProviderServicesApiBodyServicesItemAmountMin).nullable(),
+  "minimumCharge": zod.number().min(updateProviderServicesApiBodyServicesItemMinimumChargeMin).nullish()
+})).max(updateProviderServicesApiBodyServicesMax)
+})
+
+export const UpdateProviderServicesApiResponse = zod.unknown()
+
+
+/**
+ * @summary List weekly provider availability
+ */
+export const GetProviderAvailabilityResponse = zod.unknown()
+
+
+/**
+ * @summary Replace weekly provider availability
+ */
+export const updateProviderAvailabilityApiBodyAvailabilityItemDayOfWeekMin = 0;
+export const updateProviderAvailabilityApiBodyAvailabilityItemDayOfWeekMax = 6;
+
+export const updateProviderAvailabilityApiBodyAvailabilityItemStartsAtRegExp = new RegExp('^(?:[01]\\d|2[0-3]):[0-5]\\d$');
+export const updateProviderAvailabilityApiBodyAvailabilityItemEndsAtRegExp = new RegExp('^(?:[01]\\d|2[0-3]):[0-5]\\d$');
+export const updateProviderAvailabilityApiBodyAvailabilityMax = 42;
+
+
+
+export const UpdateProviderAvailabilityApiBody = zod.object({
+  "availability": zod.array(zod.object({
+  "dayOfWeek": zod.number().min(updateProviderAvailabilityApiBodyAvailabilityItemDayOfWeekMin).max(updateProviderAvailabilityApiBodyAvailabilityItemDayOfWeekMax),
+  "startsAt": zod.string().regex(updateProviderAvailabilityApiBodyAvailabilityItemStartsAtRegExp),
+  "endsAt": zod.string().regex(updateProviderAvailabilityApiBodyAvailabilityItemEndsAtRegExp),
+  "isAvailable": zod.boolean()
+})).max(updateProviderAvailabilityApiBodyAvailabilityMax)
+})
+
+export const UpdateProviderAvailabilityApiResponse = zod.unknown()
+
+
+/**
+ * @summary List active offers for the current provider
+ */
+export const ListProviderRequestsResponse = zod.unknown()
+
+
+/**
+ * @summary Accept or decline an active service offer
+ */
+export const RespondToProviderRequestApiParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const respondToProviderRequestApiBodyQuotedPriceExclusiveMin = 0;
+
+export const respondToProviderRequestApiBodyMessageMax = 1000;
+
+
+
+export const RespondToProviderRequestApiBody = zod.object({
+  "decision": zod.enum(['ACCEPT', 'DECLINE']),
+  "quotedPrice": zod.number().gt(respondToProviderRequestApiBodyQuotedPriceExclusiveMin).optional(),
+  "message": zod.string().max(respondToProviderRequestApiBodyMessageMax).optional()
+})
+
+export const RespondToProviderRequestApiResponse = zod.unknown()
+
+
+/**
+ * @summary List jobs assigned to the current provider
+ */
+export const ListProviderBookingsResponse = zod.unknown()
+
+
+/**
+ * @summary Create a safety-acknowledged emergency dispatch
+ */
+export const createEmergencyRequestApiHeaderIdempotencyKeyMin = 8;
+export const createEmergencyRequestApiHeaderIdempotencyKeyMax = 120;
+
+
+
+export const CreateEmergencyRequestApiHeader = zod.object({
+  "Idempotency-Key": zod.string().min(createEmergencyRequestApiHeaderIdempotencyKeyMin).max(createEmergencyRequestApiHeaderIdempotencyKeyMax)
+})
+
+export const createEmergencyRequestApiBodyProblemMin = 2;
+export const createEmergencyRequestApiBodyProblemMax = 200;
+
+export const createEmergencyRequestApiBodyDescriptionMin = 5;
+export const createEmergencyRequestApiBodyDescriptionMax = 3000;
+
+export const createEmergencyRequestApiBodyAddressMin = 4;
+export const createEmergencyRequestApiBodyAddressMax = 1000;
+
+export const createEmergencyRequestApiBodyLatitudeMin = -90;
+export const createEmergencyRequestApiBodyLatitudeMax = 90;
+
+export const createEmergencyRequestApiBodyLongitudeMin = -180;
+export const createEmergencyRequestApiBodyLongitudeMax = 180;
+
+
+
+export const CreateEmergencyRequestApiBody = zod.object({
+  "serviceSlug": zod.string(),
+  "emergencyType": zod.enum(['LOCKSMITH', 'PLUMBING', 'ELECTRICAL', 'ROADSIDE', 'OTHER']),
+  "problem": zod.string().min(createEmergencyRequestApiBodyProblemMin).max(createEmergencyRequestApiBodyProblemMax),
+  "description": zod.string().min(createEmergencyRequestApiBodyDescriptionMin).max(createEmergencyRequestApiBodyDescriptionMax),
+  "address": zod.string().min(createEmergencyRequestApiBodyAddressMin).max(createEmergencyRequestApiBodyAddressMax),
+  "latitude": zod.number().min(createEmergencyRequestApiBodyLatitudeMin).max(createEmergencyRequestApiBodyLatitudeMax),
+  "longitude": zod.number().min(createEmergencyRequestApiBodyLongitudeMin).max(createEmergencyRequestApiBodyLongitudeMax),
+  "safetyAcknowledged": zod.literal(true)
+})
+
+export const CreateEmergencyRequestApiResponse = zod.void()
+
+
+/**
+ * @summary Get an emergency dispatch visible to its participants
+ */
+export const GetEmergencyRequestApiParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const GetEmergencyRequestApiResponse = zod.unknown()
+
+
+/**
+ * @summary Share current provider location after explicit opt-in
+ */
+export const shareProviderLocationApiBodyLatitudeMin = -90;
+export const shareProviderLocationApiBodyLatitudeMax = 90;
+
+export const shareProviderLocationApiBodyLongitudeMin = -180;
+export const shareProviderLocationApiBodyLongitudeMax = 180;
+
+
+
+export const ShareProviderLocationApiBody = zod.object({
+  "latitude": zod.number().min(shareProviderLocationApiBodyLatitudeMin).max(shareProviderLocationApiBodyLatitudeMax),
+  "longitude": zod.number().min(shareProviderLocationApiBodyLongitudeMin).max(shareProviderLocationApiBodyLongitudeMax),
+  "sharingEnabled": zod.literal(true)
+})
+
+export const ShareProviderLocationApiResponse = zod.unknown()
+
+
+/**
+ * @summary Stop sharing provider location
+ */
+export const StopProviderLocationSharingResponse = zod.void()
+
+
+/**
+ * @summary List booking conversations for the current user
+ */
+export const ListConversationsResponse = zod.unknown()
+
+
+/**
+ * @summary Read messages in an authorized booking conversation
+ */
+export const ListConversationMessagesApiParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const listConversationMessagesApiQueryLimitDefault = 50;
+export const listConversationMessagesApiQueryLimitMax = 100;
+
+
+
+export const ListConversationMessagesApiQueryParams = zod.object({
+  "before": zod.date().optional(),
+  "limit": zod.coerce.number().min(1).max(listConversationMessagesApiQueryLimitMax).default(listConversationMessagesApiQueryLimitDefault)
+})
+
+export const ListConversationMessagesApiResponse = zod.unknown()
+
+
+/**
+ * @summary Send a message in an authorized booking conversation
+ */
+export const SendConversationMessageApiParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const sendConversationMessageApiBodyBodyMax = 4000;
+
+
+
+export const SendConversationMessageApiBody = zod.object({
+  "body": zod.string().max(sendConversationMessageApiBodyBodyMax).optional(),
+  "attachmentUrl": zod.string().optional().describe('HTTPS attachment URL')
+})
+
+export const SendConversationMessageApiResponse = zod.void()
+
+
+/**
+ * @summary Mark the current user's notification as read
+ */
+export const MarkNotificationReadApiParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const MarkNotificationReadApiResponse = zod.unknown()
+
+
+/**
+ * @summary List public reviews for a provider
+ */
+export const ListProviderReviewsApiParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const ListProviderReviewsApiResponse = zod.unknown()
+
+
+/**
+ * @summary Review an eligible completed booking once
+ */
+export const CreateBookingReviewApiParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const createBookingReviewApiBodyRatingMax = 5;
+
+export const createBookingReviewApiBodyCommentMax = 2000;
+
+
+
+export const CreateBookingReviewApiBody = zod.object({
+  "rating": zod.number().min(1).max(createBookingReviewApiBodyRatingMax),
+  "comment": zod.string().max(createBookingReviewApiBodyCommentMax).optional()
+})
+
+export const CreateBookingReviewApiResponse = zod.void()
+
+
+/**
+ * @summary Open a participant dispute with optional secure evidence links
+ */
+export const OpenBookingDisputeApiParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const openBookingDisputeApiBodyDescriptionMin = 10;
+export const openBookingDisputeApiBodyDescriptionMax = 5000;
+
+export const openBookingDisputeApiBodyEvidenceUrlsMax = 10;
+
+
+
+export const OpenBookingDisputeApiBody = zod.object({
+  "reason": zod.enum(['QUALITY', 'NO_SHOW', 'SAFETY', 'PRICE', 'DAMAGE', 'OTHER']),
+  "description": zod.string().min(openBookingDisputeApiBodyDescriptionMin).max(openBookingDisputeApiBodyDescriptionMax),
+  "evidenceUrls": zod.array(zod.string().describe('HTTPS evidence URL')).max(openBookingDisputeApiBodyEvidenceUrlsMax).optional()
+})
+
+export const OpenBookingDisputeApiResponse = zod.void()
+
+
+/**
+ * @summary List unresolved disputes
+ */
+export const ListAdminDisputesResponse = zod.unknown()
+
+
+/**
+ * @summary Record an admin dispute decision
+ */
+export const ResolveAdminDisputeApiParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const resolveAdminDisputeApiBodyResolutionMin = 10;
+export const resolveAdminDisputeApiBodyResolutionMax = 5000;
+
+
+
+export const ResolveAdminDisputeApiBody = zod.object({
+  "status": zod.enum(['UNDER_REVIEW', 'RESOLVED_CUSTOMER', 'RESOLVED_PROVIDER', 'CLOSED']),
+  "resolution": zod.string().min(resolveAdminDisputeApiBodyResolutionMin).max(resolveAdminDisputeApiBodyResolutionMax)
+})
+
+export const ResolveAdminDisputeApiResponse = zod.unknown()
+
+
+/**
+ * @summary List users and server-assigned roles
+ */
+export const ListAdminUsersResponse = zod.unknown()
+
+
+/**
+ * @summary Suspend or reactivate a user account
+ */
+export const UpdateAdminUserStatusApiParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const UpdateAdminUserStatusApiBody = zod.object({
+  "isActive": zod.boolean()
+})
+
+export const UpdateAdminUserStatusApiResponse = zod.unknown()
+
+
+/**
+ * @summary Grant or revoke a customer/provider role
+ */
+export const UpdateAdminUserRoleApiParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const updateAdminUserRoleApiBodyEnabledDefault = true;
+
+export const UpdateAdminUserRoleApiBody = zod.object({
+  "role": zod.enum(['CUSTOMER', 'PROVIDER']),
+  "enabled": zod.boolean().default(updateAdminUserRoleApiBodyEnabledDefault)
+})
+
+export const UpdateAdminUserRoleApiResponse = zod.void()
+
+
+/**
+ * @summary View provider earnings and payout history
+ */
+export const ListProviderPayoutsResponse = zod.unknown()
+
+
+/**
+ * @summary Request a balance-backed provider payout
+ */
+export const requestProviderPayoutApiHeaderIdempotencyKeyMin = 8;
+export const requestProviderPayoutApiHeaderIdempotencyKeyMax = 120;
+
+
+
+export const RequestProviderPayoutApiHeader = zod.object({
+  "Idempotency-Key": zod.string().min(requestProviderPayoutApiHeaderIdempotencyKeyMin).max(requestProviderPayoutApiHeaderIdempotencyKeyMax)
+})
+
+export const requestProviderPayoutApiBodyAmountExclusiveMin = 0;
+
+
+
+export const RequestProviderPayoutApiBody = zod.object({
+  "amount": zod.number().gt(requestProviderPayoutApiBodyAmountExclusiveMin)
+})
+
+export const RequestProviderPayoutApiResponse = zod.void()
+
+
+/**
+ * @summary List unprocessed provider payout requests
+ */
+export const ListAdminPayoutsResponse = zod.unknown()
+
+
+/**
+ * @summary Record or reject a manual bank transfer
+ */
+export const ProcessAdminPayoutApiParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const processAdminPayoutApiBodyTransferReferenceMax = 120;
+
+export const processAdminPayoutApiBodyNoteMin = 5;
+export const processAdminPayoutApiBodyNoteMax = 1000;
+
+
+
+export const ProcessAdminPayoutApiBody = zod.object({
+  "decision": zod.enum(['COMPLETE', 'REJECT']),
+  "transferReference": zod.string().max(processAdminPayoutApiBodyTransferReferenceMax).optional(),
+  "proofUrl": zod.string().optional().describe('HTTPS transfer proof URL'),
+  "note": zod.string().min(processAdminPayoutApiBodyNoteMin).max(processAdminPayoutApiBodyNoteMax)
+})
+
+export const ProcessAdminPayoutApiResponse = zod.unknown()
+
+
+/**
  * Returns server health status
  * @summary Health check
  */
@@ -274,6 +723,14 @@ export const HealthCheckResponse = zod.object({
 /**
  * @summary List available services
  */
+export const listServicesQueryQMax = 120;
+
+
+
+export const ListServicesQueryParams = zod.object({
+  "q": zod.coerce.string().max(listServicesQueryQMax).optional()
+})
+
 export const ListServicesResponseItem = zod.object({
   "id": zod.string(),
   "slug": zod.string(),
@@ -293,7 +750,9 @@ export const ListServicesResponse = zod.array(ListServicesResponseItem)
  */
 export const ListTechniciansQueryParams = zod.object({
   "serviceSlug": zod.coerce.string().optional(),
-  "requestId": zod.coerce.string().optional()
+  "requestId": zod.coerce.string().optional(),
+  "latitude": zod.coerce.number().optional(),
+  "longitude": zod.coerce.number().optional()
 })
 
 export const ListTechniciansResponseItem = zod.object({
@@ -315,44 +774,118 @@ export const ListTechniciansResponse = zod.array(ListTechniciansResponseItem)
 /**
  * @summary Create a customer service request
  */
+export const createServiceRequestBodyBudgetMinMin = 0;
+
+export const createServiceRequestBodyBudgetMaxMin = 0;
+
+export const createServiceRequestBodyLatitudeMin = -90;
+export const createServiceRequestBodyLatitudeMax = 90;
+
+export const createServiceRequestBodyLongitudeMin = -180;
+export const createServiceRequestBodyLongitudeMax = 180;
+
+export const createServiceRequestBodyProblemPhotosMax = 5;
+
+
+
 export const CreateServiceRequestBody = zod.object({
   "serviceSlug": zod.string(),
   "problem": zod.string(),
   "description": zod.string(),
   "address": zod.string(),
-  "urgency": zod.string().optional()
+  "urgency": zod.string().optional(),
+  "preferredAt": zod.coerce.date().optional(),
+  "budgetMin": zod.number().min(createServiceRequestBodyBudgetMinMin).optional(),
+  "budgetMax": zod.number().min(createServiceRequestBodyBudgetMaxMin).optional(),
+  "latitude": zod.number().min(createServiceRequestBodyLatitudeMin).max(createServiceRequestBodyLatitudeMax).optional(),
+  "longitude": zod.number().min(createServiceRequestBodyLongitudeMin).max(createServiceRequestBodyLongitudeMax).optional(),
+  "problemPhotos": zod.array(zod.string()).max(createServiceRequestBodyProblemPhotosMax).optional()
 })
+
+export const createServiceRequestResponseOneBudgetMinMin = 0;
+
+export const createServiceRequestResponseOneBudgetMaxMin = 0;
+
+export const createServiceRequestResponseOneLatitudeMin = -90;
+export const createServiceRequestResponseOneLatitudeMax = 90;
+
+export const createServiceRequestResponseOneLongitudeMin = -180;
+export const createServiceRequestResponseOneLongitudeMax = 180;
+
+export const createServiceRequestResponseOneProblemPhotosMax = 5;
+
+
 
 export const CreateServiceRequestResponse = zod.object({
   "serviceSlug": zod.string(),
   "problem": zod.string(),
   "description": zod.string(),
   "address": zod.string(),
-  "urgency": zod.string().optional()
+  "urgency": zod.string().optional(),
+  "preferredAt": zod.coerce.date().optional(),
+  "budgetMin": zod.number().min(createServiceRequestResponseOneBudgetMinMin).optional(),
+  "budgetMax": zod.number().min(createServiceRequestResponseOneBudgetMaxMin).optional(),
+  "latitude": zod.number().min(createServiceRequestResponseOneLatitudeMin).max(createServiceRequestResponseOneLatitudeMax).optional(),
+  "longitude": zod.number().min(createServiceRequestResponseOneLongitudeMin).max(createServiceRequestResponseOneLongitudeMax).optional(),
+  "problemPhotos": zod.array(zod.string()).max(createServiceRequestResponseOneProblemPhotosMax).optional()
 }).and(zod.object({
   "id": zod.string(),
+  "status": zod.string(),
   "createdAt": zod.string(),
   "priceMin": zod.number(),
   "priceMax": zod.number(),
-  "arrival": zod.string()
+  "arrival": zod.string(),
+  "preferredAt": zod.coerce.date().nullish(),
+  "latitude": zod.number().nullish(),
+  "longitude": zod.number().nullish(),
+  "budgetMin": zod.number().nullish(),
+  "budgetMax": zod.number().nullish(),
+  "problemPhotos": zod.array(zod.string()).optional()
 }))
 
 
 /**
  * @summary List recent service requests
  */
+export const listServiceRequestsResponseOneBudgetMinMin = 0;
+
+export const listServiceRequestsResponseOneBudgetMaxMin = 0;
+
+export const listServiceRequestsResponseOneLatitudeMin = -90;
+export const listServiceRequestsResponseOneLatitudeMax = 90;
+
+export const listServiceRequestsResponseOneLongitudeMin = -180;
+export const listServiceRequestsResponseOneLongitudeMax = 180;
+
+export const listServiceRequestsResponseOneProblemPhotosMax = 5;
+
+
+
 export const ListServiceRequestsResponseItem = zod.object({
   "serviceSlug": zod.string(),
   "problem": zod.string(),
   "description": zod.string(),
   "address": zod.string(),
-  "urgency": zod.string().optional()
+  "urgency": zod.string().optional(),
+  "preferredAt": zod.coerce.date().optional(),
+  "budgetMin": zod.number().min(listServiceRequestsResponseOneBudgetMinMin).optional(),
+  "budgetMax": zod.number().min(listServiceRequestsResponseOneBudgetMaxMin).optional(),
+  "latitude": zod.number().min(listServiceRequestsResponseOneLatitudeMin).max(listServiceRequestsResponseOneLatitudeMax).optional(),
+  "longitude": zod.number().min(listServiceRequestsResponseOneLongitudeMin).max(listServiceRequestsResponseOneLongitudeMax).optional(),
+  "problemPhotos": zod.array(zod.string()).max(listServiceRequestsResponseOneProblemPhotosMax).optional()
 }).and(zod.object({
   "id": zod.string(),
+  "status": zod.string(),
   "createdAt": zod.string(),
   "priceMin": zod.number(),
   "priceMax": zod.number(),
-  "arrival": zod.string()
+  "arrival": zod.string(),
+  "preferredAt": zod.coerce.date().nullish(),
+  "latitude": zod.number().nullish(),
+  "longitude": zod.number().nullish(),
+  "budgetMin": zod.number().nullish(),
+  "budgetMax": zod.number().nullish(),
+  "problemPhotos": zod.array(zod.string()).optional()
 }))
 export const ListServiceRequestsResponse = zod.array(ListServiceRequestsResponseItem)
 
@@ -375,6 +908,7 @@ export const CreateBookingResponse = zod.object({
   "status": zod.enum(['REQUESTED', 'SEARCHING', 'ASSIGNED', 'ACCEPTED', 'TECHNICIAN_EN_ROUTE', 'ARRIVED', 'IN_PROGRESS', 'COMPLETED', 'CUSTOMER_CONFIRMED', 'PAID', 'RATED', 'CANCELLED', 'DISPUTED', 'REFUNDED', 'REASSIGNED']),
   "priceMin": zod.number(),
   "priceMax": zod.number(),
+  "finalPrice": zod.number().nullable(),
   "eta": zod.string(),
   "createdAt": zod.string(),
   "progress": zod.number()
@@ -398,6 +932,7 @@ export const GetBookingResponse = zod.object({
   "status": zod.enum(['REQUESTED', 'SEARCHING', 'ASSIGNED', 'ACCEPTED', 'TECHNICIAN_EN_ROUTE', 'ARRIVED', 'IN_PROGRESS', 'COMPLETED', 'CUSTOMER_CONFIRMED', 'PAID', 'RATED', 'CANCELLED', 'DISPUTED', 'REFUNDED', 'REASSIGNED']),
   "priceMin": zod.number(),
   "priceMax": zod.number(),
+  "finalPrice": zod.number().nullable(),
   "eta": zod.string(),
   "createdAt": zod.string(),
   "progress": zod.number()
@@ -411,8 +946,13 @@ export const UpdateBookingStatusParams = zod.object({
   "id": zod.coerce.string()
 })
 
+export const updateBookingStatusBodyQuotedPriceExclusiveMin = 0;
+
+
+
 export const UpdateBookingStatusBody = zod.object({
-  "status": zod.enum(['REQUESTED', 'SEARCHING', 'ASSIGNED', 'ACCEPTED', 'TECHNICIAN_EN_ROUTE', 'ARRIVED', 'IN_PROGRESS', 'COMPLETED', 'CUSTOMER_CONFIRMED', 'PAID', 'RATED', 'CANCELLED', 'DISPUTED', 'REFUNDED', 'REASSIGNED'])
+  "status": zod.enum(['REQUESTED', 'SEARCHING', 'ASSIGNED', 'ACCEPTED', 'TECHNICIAN_EN_ROUTE', 'ARRIVED', 'IN_PROGRESS', 'COMPLETED', 'CUSTOMER_CONFIRMED', 'PAID', 'RATED', 'CANCELLED', 'DISPUTED', 'REFUNDED', 'REASSIGNED']),
+  "quotedPrice": zod.number().gt(updateBookingStatusBodyQuotedPriceExclusiveMin).optional()
 })
 
 export const UpdateBookingStatusResponse = zod.object({
@@ -425,6 +965,7 @@ export const UpdateBookingStatusResponse = zod.object({
   "status": zod.enum(['REQUESTED', 'SEARCHING', 'ASSIGNED', 'ACCEPTED', 'TECHNICIAN_EN_ROUTE', 'ARRIVED', 'IN_PROGRESS', 'COMPLETED', 'CUSTOMER_CONFIRMED', 'PAID', 'RATED', 'CANCELLED', 'DISPUTED', 'REFUNDED', 'REASSIGNED']),
   "priceMin": zod.number(),
   "priceMax": zod.number(),
+  "finalPrice": zod.number().nullable(),
   "eta": zod.string(),
   "createdAt": zod.string(),
   "progress": zod.number()
@@ -434,6 +975,20 @@ export const UpdateBookingStatusResponse = zod.object({
 /**
  * @summary Get customer dashboard summary
  */
+export const getDashboardSummaryResponseRecentRequestsItemOneBudgetMinMin = 0;
+
+export const getDashboardSummaryResponseRecentRequestsItemOneBudgetMaxMin = 0;
+
+export const getDashboardSummaryResponseRecentRequestsItemOneLatitudeMin = -90;
+export const getDashboardSummaryResponseRecentRequestsItemOneLatitudeMax = 90;
+
+export const getDashboardSummaryResponseRecentRequestsItemOneLongitudeMin = -180;
+export const getDashboardSummaryResponseRecentRequestsItemOneLongitudeMax = 180;
+
+export const getDashboardSummaryResponseRecentRequestsItemOneProblemPhotosMax = 5;
+
+
+
 export const GetDashboardSummaryResponse = zod.object({
   "activeBooking": zod.union([zod.object({
   "id": zod.string(),
@@ -445,6 +1000,7 @@ export const GetDashboardSummaryResponse = zod.object({
   "status": zod.enum(['REQUESTED', 'SEARCHING', 'ASSIGNED', 'ACCEPTED', 'TECHNICIAN_EN_ROUTE', 'ARRIVED', 'IN_PROGRESS', 'COMPLETED', 'CUSTOMER_CONFIRMED', 'PAID', 'RATED', 'CANCELLED', 'DISPUTED', 'REFUNDED', 'REASSIGNED']),
   "priceMin": zod.number(),
   "priceMax": zod.number(),
+  "finalPrice": zod.number().nullable(),
   "eta": zod.string(),
   "createdAt": zod.string(),
   "progress": zod.number()
@@ -454,13 +1010,26 @@ export const GetDashboardSummaryResponse = zod.object({
   "problem": zod.string(),
   "description": zod.string(),
   "address": zod.string(),
-  "urgency": zod.string().optional()
+  "urgency": zod.string().optional(),
+  "preferredAt": zod.coerce.date().optional(),
+  "budgetMin": zod.number().min(getDashboardSummaryResponseRecentRequestsItemOneBudgetMinMin).optional(),
+  "budgetMax": zod.number().min(getDashboardSummaryResponseRecentRequestsItemOneBudgetMaxMin).optional(),
+  "latitude": zod.number().min(getDashboardSummaryResponseRecentRequestsItemOneLatitudeMin).max(getDashboardSummaryResponseRecentRequestsItemOneLatitudeMax).optional(),
+  "longitude": zod.number().min(getDashboardSummaryResponseRecentRequestsItemOneLongitudeMin).max(getDashboardSummaryResponseRecentRequestsItemOneLongitudeMax).optional(),
+  "problemPhotos": zod.array(zod.string()).max(getDashboardSummaryResponseRecentRequestsItemOneProblemPhotosMax).optional()
 }).and(zod.object({
   "id": zod.string(),
+  "status": zod.string(),
   "createdAt": zod.string(),
   "priceMin": zod.number(),
   "priceMax": zod.number(),
-  "arrival": zod.string()
+  "arrival": zod.string(),
+  "preferredAt": zod.coerce.date().nullish(),
+  "latitude": zod.number().nullish(),
+  "longitude": zod.number().nullish(),
+  "budgetMin": zod.number().nullish(),
+  "budgetMax": zod.number().nullish(),
+  "problemPhotos": zod.array(zod.string()).optional()
 })))
 })
 
@@ -468,18 +1037,45 @@ export const GetDashboardSummaryResponse = zod.object({
 /**
  * @summary Get the customer's service history
  */
+export const getServiceHistoryResponseOneBudgetMinMin = 0;
+
+export const getServiceHistoryResponseOneBudgetMaxMin = 0;
+
+export const getServiceHistoryResponseOneLatitudeMin = -90;
+export const getServiceHistoryResponseOneLatitudeMax = 90;
+
+export const getServiceHistoryResponseOneLongitudeMin = -180;
+export const getServiceHistoryResponseOneLongitudeMax = 180;
+
+export const getServiceHistoryResponseOneProblemPhotosMax = 5;
+
+
+
 export const GetServiceHistoryResponseItem = zod.object({
   "serviceSlug": zod.string(),
   "problem": zod.string(),
   "description": zod.string(),
   "address": zod.string(),
-  "urgency": zod.string().optional()
+  "urgency": zod.string().optional(),
+  "preferredAt": zod.coerce.date().optional(),
+  "budgetMin": zod.number().min(getServiceHistoryResponseOneBudgetMinMin).optional(),
+  "budgetMax": zod.number().min(getServiceHistoryResponseOneBudgetMaxMin).optional(),
+  "latitude": zod.number().min(getServiceHistoryResponseOneLatitudeMin).max(getServiceHistoryResponseOneLatitudeMax).optional(),
+  "longitude": zod.number().min(getServiceHistoryResponseOneLongitudeMin).max(getServiceHistoryResponseOneLongitudeMax).optional(),
+  "problemPhotos": zod.array(zod.string()).max(getServiceHistoryResponseOneProblemPhotosMax).optional()
 }).and(zod.object({
   "id": zod.string(),
+  "status": zod.string(),
   "createdAt": zod.string(),
   "priceMin": zod.number(),
   "priceMax": zod.number(),
-  "arrival": zod.string()
+  "arrival": zod.string(),
+  "preferredAt": zod.coerce.date().nullish(),
+  "latitude": zod.number().nullish(),
+  "longitude": zod.number().nullish(),
+  "budgetMin": zod.number().nullish(),
+  "budgetMax": zod.number().nullish(),
+  "problemPhotos": zod.array(zod.string()).optional()
 }))
 export const GetServiceHistoryResponse = zod.array(GetServiceHistoryResponseItem)
 

@@ -17,6 +17,7 @@ export interface Booking {
   status: BookingStatus;
   priceMin: number;
   priceMax: number;
+  finalPrice: number | null;
   eta: string;
   createdAt: string;
   progress: number;

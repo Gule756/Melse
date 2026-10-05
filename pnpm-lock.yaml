@@ -194,6 +194,9 @@ importers:
       cors:
         specifier: ^2.8.6
         version: 2.8.6
+      express-rate-limit:
+        specifier: ^8.6.2
+        version: 8.6.2(express@5.2.1)
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.2(@types/pg@8.20.0)(pg@8.22.0)

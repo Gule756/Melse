@@ -12,4 +12,21 @@ export interface ServiceRequestInput {
   description: string;
   address: string;
   urgency?: string;
+  preferredAt?: Date;
+  /** @minimum 0 */
+  budgetMin?: number;
+  /** @minimum 0 */
+  budgetMax?: number;
+  /**
+     * @minimum -90
+     * @maximum 90
+     */
+  latitude?: number;
+  /**
+     * @minimum -180
+     * @maximum 180
+     */
+  longitude?: number;
+  /** @maxItems 5 */
+  problemPhotos?: string[];
 }

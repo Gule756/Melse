@@ -1,61 +1,252 @@
 import { Router, type IRouter } from "express";
-import { and, eq, inArray, or } from "drizzle-orm";
+import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { and, eq, ilike, inArray, ne, or } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { CreateBookingBody, CreateServiceRequestBody, ListTechniciansQueryParams, UpdateBookingStatusBody, GetBookingParams, UpdateBookingStatusParams } from "@workspace/api-zod";
-import { customerAssetsTable, db, bookingsTable, homecarePlansTable, homecareSubscriptionsTable, loyaltyAccountsTable, loyaltyTransactionsTable, maintenanceRecommendationsTable, paymentsTable, pricingRulesTable, promotionsTable, serviceCategoriesTable, serviceGuaranteesTable, serviceRequestsTable, technicianProfilesTable, usersTable } from "@workspace/db";
+import { auditLogsTable, bookingStatusHistoryTable, customerAssetsTable, db, bookingsTable, conversationsTable, homecarePlansTable, homecareSubscriptionsTable, ledgerEntriesTable, loyaltyAccountsTable, loyaltyTransactionsTable, maintenanceRecommendationsTable, notificationsTable, paymentWebhookEventsTable, paymentsTable, pricingRulesTable, promotionsTable, providerOffersTable, serviceCategoriesTable, serviceGuaranteesTable, serviceRequestsTable, technicianProfilesTable, technicianServicePricingTable, technicianSkillsTable, usersTable } from "@workspace/db";
 import { currentUser, requireAuth, requireRole } from "../middlewares/auth";
 import { canTransition } from "../lib/job-state";
-import { calculateEstimate } from "../lib/pricing";
-import { UnconfiguredPaymentProvider } from "../lib/payment";
+import { calculateEstimate, resolveProviderPrice } from "../lib/pricing";
+import { ChapaPaymentProvider, PaymentProviderRequestError, PaymentProviderUnavailableError, type PaymentVerification } from "../lib/payment";
+import { ProviderMatchingService } from "../lib/provider-matching";
 
 const router: IRouter = Router();
-const paymentProvider = new UnconfiguredPaymentProvider();
-const services = [
-  { id: "svc-1", slug: "appliance-repair", name: "Appliance repair", description: "Fridges, washing machines, cookers and more", icon: "appliance", startingPrice: 400, priceMax: 700, arrival: "25–35 min", accent: "ochre" },
-  { id: "svc-2", slug: "electrician", name: "Electrician", description: "Safe, reliable help for electrical problems", icon: "electric", startingPrice: 350, priceMax: 650, arrival: "20–30 min", accent: "gold" },
-  { id: "svc-3", slug: "plumber", name: "Plumber", description: "Leaks, drains, faucets and installations", icon: "plumber", startingPrice: 400, priceMax: 700, arrival: "25–35 min", accent: "blue" },
-  { id: "svc-4", slug: "ac-refrigeration", name: "AC & refrigeration", description: "Keep your home cool and comfortable", icon: "ac", startingPrice: 500, priceMax: 900, arrival: "30–45 min", accent: "mint" },
-  { id: "svc-5", slug: "cleaning", name: "Cleaning", description: "A fresh, cared-for home without the hassle", icon: "cleaning", startingPrice: 500, priceMax: 1000, arrival: "Same day", accent: "coral" },
-] as const;
+const paymentProvider = new ChapaPaymentProvider();
+const providerMatching = new ProviderMatchingService();
+const servicePresentation: Record<string, { arrival: string; accent: string }> = {
+  "appliance-repair": { arrival: "Provider will confirm", accent: "ochre" },
+  electrician: { arrival: "Provider will confirm", accent: "gold" },
+  plumber: { arrival: "Provider will confirm", accent: "blue" },
+  "ac-refrigeration": { arrival: "Provider will confirm", accent: "mint" },
+  cleaning: { arrival: "Provider will confirm", accent: "coral" },
+};
 
-function serviceFor(slug: string) { return services.find((service) => service.slug === slug) ?? services[0]; }
+function presentationFor(slug: string) { return servicePresentation[slug] ?? { arrival: "To be confirmed", accent: "mint" }; }
+
+async function completeVerifiedPayment(transactionId: string, eventId: string, payloadHash: string, verification: PaymentVerification) {
+  return db.transaction(async (tx) => {
+    const [payment] = await tx.select().from(paymentsTable)
+      .where(eq(paymentsTable.providerReference, transactionId))
+      .limit(1)
+      .for("update");
+    if (!payment) return { kind: "not-found" as const };
+    if (payment.status === "COMPLETED") return { kind: "already-completed" as const, payment };
+    const paidCents = Math.round(Number(verification.amount) * 100);
+    const expectedCents = Math.round(Number(payment.amount) * 100);
+    if (verification.transactionId !== transactionId || verification.currency !== "ETB" || paidCents !== expectedCents) {
+      await tx.update(paymentsTable).set({
+        failureReason: "Verified amount, currency, or transaction reference does not match the payment record.",
+      }).where(eq(paymentsTable.id, payment.id));
+      return { kind: "verification-mismatch" as const };
+    }
+    const [booking] = await tx.select().from(bookingsTable)
+      .where(eq(bookingsTable.id, payment.bookingId))
+      .limit(1)
+      .for("update");
+    if (!booking) throw new Error("Verified payment references a missing booking.");
+    if (booking.status !== "CUSTOMER_CONFIRMED") return { kind: "booking-not-confirmed" as const };
+    const [event] = await tx.insert(paymentWebhookEventsTable).values({
+      provider: "chapa",
+      eventId,
+      payloadHash,
+    }).onConflictDoNothing().returning();
+    if (!event) return { kind: "duplicate-event" as const, payment };
+
+    const [request] = await tx.select().from(serviceRequestsTable)
+      .where(eq(serviceRequestsTable.id, booking.requestId)).limit(1);
+    if (!request) throw new Error("Verified payment references a missing service request.");
+    const [pricing] = await tx.select().from(pricingRulesTable)
+      .where(eq(pricingRulesTable.categoryId, request.categoryId)).limit(1);
+    if (!pricing) throw new Error("Payment commission cannot be calculated without pricing rules.");
+    const amount = Number(payment.amount);
+    const commission = Math.round(amount * Number(pricing.platformCommissionRate) * 100) / 100;
+    const providerEarning = Math.round((amount - commission) * 100) / 100;
+    await tx.update(paymentsTable).set({ status: "COMPLETED", verifiedAt: new Date(), failureReason: null })
+      .where(eq(paymentsTable.id, payment.id));
+    await tx.update(bookingsTable).set({ status: "PAID", updatedAt: new Date() }).where(eq(bookingsTable.id, booking.id));
+    await tx.update(serviceRequestsTable).set({ status: "PAID", updatedAt: new Date() })
+      .where(eq(serviceRequestsTable.id, request.id));
+    await tx.insert(bookingStatusHistoryTable).values({ bookingId: booking.id, status: "PAID" });
+    const [provider] = await tx.select({ userId: technicianProfilesTable.userId })
+      .from(technicianProfilesTable)
+      .where(eq(technicianProfilesTable.id, booking.technicianId))
+      .limit(1);
+    const entries = [
+      {
+        bookingId: booking.id,
+        userId: booking.customerId,
+        type: "CUSTOMER_PAYMENT" as const,
+        amount: String(amount),
+        idempotencyKey: `payment:${payment.id}:customer`,
+      },
+      {
+        bookingId: booking.id,
+        type: "PLATFORM_COMMISSION" as const,
+        amount: String(commission),
+        idempotencyKey: `payment:${payment.id}:commission`,
+      },
+      {
+        bookingId: booking.id,
+        userId: provider?.userId,
+        type: "PROVIDER_EARNING" as const,
+        amount: String(providerEarning),
+        idempotencyKey: `payment:${payment.id}:provider`,
+      },
+    ].filter((entry) => Number(entry.amount) > 0);
+    if (entries.length) await tx.insert(ledgerEntriesTable).values(entries);
+    await tx.insert(auditLogsTable).values({
+      actorId: null,
+      action: "PAYMENT_VERIFIED",
+      entityType: "payment",
+      entityId: payment.id,
+      metadata: { provider: "chapa", transactionId, amount },
+    });
+    return { kind: "completed" as const, payment };
+  });
+}
 
 async function requestResponse(request: typeof serviceRequestsTable.$inferSelect) {
   const [category] = await db.select({ slug: serviceCategoriesTable.slug }).from(serviceCategoriesTable).where(eq(serviceCategoriesTable.id, request.categoryId)).limit(1);
-  const service = serviceFor(category?.slug ?? "");
+  const presentation = presentationFor(category?.slug ?? "");
   const [problem, description = ""] = request.problemDescription.split("\n");
-  return { serviceSlug: service.slug, problem, description, address: request.address, id: request.id, createdAt: request.createdAt.toISOString(), priceMin: Number(request.estimatedPriceMin), priceMax: Number(request.estimatedPriceMax), arrival: service.arrival };
+  return {
+    serviceSlug: category?.slug ?? "",
+    problem,
+    description,
+    address: request.address,
+    id: request.id,
+    status: request.status,
+    urgency: request.urgency,
+    preferredAt: request.preferredAt?.toISOString() ?? null,
+    problemPhotos: request.problemPhotos ?? [],
+    latitude: request.latitude === null ? null : Number(request.latitude),
+    longitude: request.longitude === null ? null : Number(request.longitude),
+    budgetMin: request.budgetMin === null ? null : Number(request.budgetMin),
+    budgetMax: request.budgetMax === null ? null : Number(request.budgetMax),
+    createdAt: request.createdAt.toISOString(),
+    priceMin: Number(request.estimatedPriceMin),
+    priceMax: Number(request.estimatedPriceMax),
+    arrival: presentation.arrival,
+  };
 }
 
 async function bookingResponse(booking: typeof bookingsTable.$inferSelect) {
   const [request] = await db.select().from(serviceRequestsTable).where(eq(serviceRequestsTable.id, booking.requestId)).limit(1);
   const [provider] = await db.select({ name: usersTable.fullName }).from(technicianProfilesTable).innerJoin(usersTable, eq(technicianProfilesTable.userId, usersTable.id)).where(eq(technicianProfilesTable.id, booking.technicianId)).limit(1);
   const requestView = request ? await requestResponse(request) : undefined;
-  return { id: booking.id, requestId: booking.requestId, technicianId: booking.technicianId, technicianName: provider?.name ?? "Provider", serviceName: requestView?.serviceSlug ?? "Service", address: request?.address ?? "", status: booking.status, priceMin: requestView?.priceMin ?? 0, priceMax: requestView?.priceMax ?? 0, eta: "Provider will confirm", createdAt: booking.createdAt.toISOString(), progress: booking.status === "COMPLETED" ? 100 : booking.status === "IN_PROGRESS" ? 75 : booking.status === "ARRIVED" ? 55 : 25 };
+  return { id: booking.id, requestId: booking.requestId, technicianId: booking.technicianId, technicianName: provider?.name ?? "Provider", serviceName: requestView?.serviceSlug ?? "Service", address: request?.address ?? "", status: booking.status, priceMin: requestView?.priceMin ?? 0, priceMax: requestView?.priceMax ?? 0, finalPrice: booking.finalPrice === null ? null : Number(booking.finalPrice), eta: "Provider will confirm", createdAt: booking.createdAt.toISOString(), progress: booking.status === "COMPLETED" ? 100 : booking.status === "IN_PROGRESS" ? 75 : booking.status === "ARRIVED" ? 55 : 25 };
 }
 
-router.get("/services", (_req, res) => res.json(services));
+router.get("/services", async (req, res, next) => {
+  const query = z.object({ q: z.string().trim().max(120).optional() }).safeParse(req.query);
+  if (!query.success) return res.status(400).json({ error: "Invalid service search." });
+  try {
+    const filters = [eq(serviceCategoriesTable.isActive, true)];
+    if (query.data.q) {
+      const term = `%${query.data.q.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
+      filters.push(or(ilike(serviceCategoriesTable.name, term), ilike(serviceCategoriesTable.description, term))!);
+    }
+    const rows = await db.select({ category: serviceCategoriesTable, pricing: pricingRulesTable })
+      .from(serviceCategoriesTable)
+      .leftJoin(pricingRulesTable, eq(pricingRulesTable.categoryId, serviceCategoriesTable.id))
+      .where(and(...filters));
+    if (rows.some(({ pricing }) => !pricing)) return res.status(503).json({ error: "Service pricing is not configured." });
+    return res.json(rows.map(({ category, pricing }) => {
+      const presentation = presentationFor(category.slug);
+      return {
+        id: category.id,
+        slug: category.slug,
+        name: category.name,
+        description: category.description ?? "",
+        icon: category.iconName,
+        startingPrice: Number(pricing!.basePriceMin),
+        priceMax: Number(pricing!.basePriceMax),
+        arrival: presentation.arrival,
+        accent: presentation.accent,
+      };
+    }));
+  } catch (error) { return next(error); }
+});
 
 router.get("/technicians", requireAuth, async (req, res, next) => {
-  const parsed = ListTechniciansQueryParams.safeParse(req.query);
+  const parsed = ListTechniciansQueryParams.extend({
+    latitude: z.coerce.number().min(-90).max(90).optional(),
+    longitude: z.coerce.number().min(-180).max(180).optional(),
+  }).refine((filters) => (filters.latitude === undefined) === (filters.longitude === undefined), {
+    message: "Latitude and longitude must be supplied together.",
+  }).safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ error: "Invalid technician filters." });
   try {
     const serviceSlug = parsed.data.serviceSlug;
     const requestId = parsed.data.requestId;
     let requestedCategoryId: string | undefined;
+    let scheduledRequest: {
+      categoryId: string;
+      latitude: string | null;
+      longitude: string | null;
+      preferredAt: Date | null;
+      budgetMin: string | null;
+      budgetMax: string | null;
+      isEmergency: boolean;
+    } | undefined;
     if (serviceSlug) {
       const [category] = await db.select({ id: serviceCategoriesTable.id }).from(serviceCategoriesTable).where(eq(serviceCategoriesTable.slug, serviceSlug)).limit(1);
       requestedCategoryId = category?.id;
       if (!requestedCategoryId) return res.json([]);
     }
+    let searchLatitude = parsed.data.latitude;
+    let searchLongitude = parsed.data.longitude;
     if (requestId) {
-      const [request] = await db.select({ categoryId: serviceRequestsTable.categoryId }).from(serviceRequestsTable).where(eq(serviceRequestsTable.id, requestId)).limit(1);
-      requestedCategoryId = request?.categoryId ?? requestedCategoryId;
+      const [request] = await db.select({
+        customerId: serviceRequestsTable.customerId,
+        categoryId: serviceRequestsTable.categoryId,
+        latitude: serviceRequestsTable.latitude,
+        longitude: serviceRequestsTable.longitude,
+        preferredAt: serviceRequestsTable.preferredAt,
+        budgetMin: serviceRequestsTable.budgetMin,
+        budgetMax: serviceRequestsTable.budgetMax,
+        isEmergency: serviceRequestsTable.isEmergency,
+      }).from(serviceRequestsTable).where(eq(serviceRequestsTable.id, requestId)).limit(1);
+      if (!request || (request.customerId !== currentUser(req)!.id && !currentUser(req)!.roles.includes("ADMIN"))) {
+        return res.status(404).json({ error: "Request not found." });
+      }
+      requestedCategoryId = request.categoryId;
+      scheduledRequest = request;
+      searchLatitude = request.latitude === null ? searchLatitude : Number(request.latitude);
+      searchLongitude = request.longitude === null ? searchLongitude : Number(request.longitude);
     }
-    const rows = await db.select({ profile: technicianProfilesTable, name: usersTable.fullName }).from(technicianProfilesTable).innerJoin(usersTable, eq(technicianProfilesTable.userId, usersTable.id)).where(and(eq(technicianProfilesTable.verificationStatus, "VERIFIED"), eq(technicianProfilesTable.isAvailable, true)));
-    const ranked = [...rows].sort((left, right) => Number(right.profile.ratingAvg) - Number(left.profile.ratingAvg) || right.profile.ratingCount - left.profile.ratingCount);
-    return res.json(ranked.map(({ profile, name }) => ({ id: profile.id, name, initials: name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase(), rating: Number(profile.ratingAvg), reviews: profile.ratingCount, verified: true, distance: requestedCategoryId ? "Matched to your service" : "Available in your area", eta: "To confirm", earnings: profile.hourlyRate ? `ETB ${profile.hourlyRate}/hr` : "Quote after review", specialty: profile.serviceArea ?? "Local services", available: profile.isAvailable })));
+    const ranked = requestedCategoryId
+      ? await providerMatching.findMatches(scheduledRequest ?? {
+        categoryId: requestedCategoryId,
+        latitude: searchLatitude === undefined ? null : String(searchLatitude),
+        longitude: searchLongitude === undefined ? null : String(searchLongitude),
+        preferredAt: null,
+        budgetMin: null,
+        budgetMax: null,
+        isEmergency: false,
+      })
+      : await db.select({ profile: technicianProfilesTable, name: usersTable.fullName })
+        .from(technicianProfilesTable)
+        .innerJoin(usersTable, eq(technicianProfilesTable.userId, usersTable.id))
+        .where(and(
+          eq(technicianProfilesTable.verificationStatus, "VERIFIED"),
+          eq(technicianProfilesTable.isAvailable, true),
+          eq(usersTable.isActive, true),
+        )).then((rows) => rows.map(({ profile, name }) => ({ profile, name, distanceKm: null })));
+    return res.json(ranked.filter(({ profile }) => profile.userId !== currentUser(req)!.id).map(({ profile, name, distanceKm }) => ({
+      id: profile.id,
+      name,
+      initials: name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase(),
+      rating: profile.ratingCount > 0 ? Number(profile.ratingAvg) : 0,
+      reviews: profile.ratingCount,
+      verified: true,
+      distance: distanceKm === null ? "Distance unavailable" : `${distanceKm.toFixed(1)} km`,
+      eta: "Provider will confirm",
+      earnings: "Ask provider",
+      specialty: profile.serviceArea ?? "Local services",
+      available: profile.isAvailable,
+    })));
   } catch (error) { return next(error); }
 });
 
@@ -68,18 +259,115 @@ router.get("/service-requests", requireAuth, async (req, res, next) => {
 });
 
 router.post("/service-requests", requireRole("CUSTOMER"), async (req, res, next) => {
-  const parsed = CreateServiceRequestBody.safeParse(req.body);
+  const parsed = CreateServiceRequestBody.extend({
+    preferredAt: z.string().datetime().optional(),
+    budgetMin: z.number().nonnegative().optional(),
+    budgetMax: z.number().nonnegative().optional(),
+    latitude: z.number().min(-90).max(90).optional(),
+    longitude: z.number().min(-180).max(180).optional(),
+    problemPhotos: z.array(z.string().url()).max(5).optional(),
+  }).refine((value) => value.budgetMin === undefined || value.budgetMax === undefined || value.budgetMax >= value.budgetMin, {
+    message: "Maximum budget must be at least the minimum budget.",
+  }).refine((value) => (value.latitude === undefined) === (value.longitude === undefined), {
+    message: "Latitude and longitude must be supplied together.",
+  }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Please complete the request details." });
+  const suppliedKey = req.get("idempotency-key");
+  if (suppliedKey !== undefined && !z.string().trim().min(8).max(120).safeParse(suppliedKey).success) {
+    return res.status(400).json({ error: "Invalid Idempotency-Key header." });
+  }
+  const idempotencyKey = suppliedKey
+    ? `${currentUser(req)!.id}:${suppliedKey.trim()}`
+    : undefined;
+  const payloadHash = createHash("sha256").update(JSON.stringify(parsed.data)).digest("hex");
   try {
+    if (idempotencyKey) {
+      const [existing] = await db.select().from(serviceRequestsTable)
+        .where(eq(serviceRequestsTable.idempotencyKey, idempotencyKey)).limit(1);
+      if (existing) {
+        if (existing.customerId !== currentUser(req)!.id || existing.payloadHash !== payloadHash) {
+          return res.status(409).json({ error: "Idempotency key was already used for a different request." });
+        }
+        return res.status(200).json(await requestResponse(existing));
+      }
+    }
     const [category] = await db.select().from(serviceCategoriesTable).where(eq(serviceCategoriesTable.slug, parsed.data.serviceSlug)).limit(1);
     if (!category) return res.status(400).json({ error: "That service is not available." });
-    const service = serviceFor(parsed.data.serviceSlug);
     const [pricing] = await db.select().from(pricingRulesTable).where(eq(pricingRulesTable.categoryId, category.id)).limit(1);
-    const estimate = calculateEstimate({ baseMin: pricing ? Number(pricing.basePriceMin) : service.startingPrice, baseMax: pricing ? Number(pricing.basePriceMax) : service.priceMax, emergencyFee: pricing ? Number(pricing.emergencyFee) : 150, commissionRate: pricing ? Number(pricing.platformCommissionRate) : 0.15 }, { isEmergency: parsed.data.urgency === "Emergency", distanceKm: 0 });
-    const [request] = await db.insert(serviceRequestsTable).values({ customerId: currentUser(req)!.id, categoryId: category.id, problemDescription: `${parsed.data.problem}\n${parsed.data.description}`, address: parsed.data.address, latitude: "9.005401", longitude: "38.763611", estimatedPriceMin: String(estimate.minPrice), estimatedPriceMax: String(estimate.maxPrice) }).returning();
-    if (!request) return res.status(500).json({ error: "Could not create the request." });
-    return res.status(201).json({ ...parsed.data, id: request.id, createdAt: request.createdAt.toISOString(), priceMin: estimate.minPrice, priceMax: estimate.maxPrice, arrival: service.arrival });
-  } catch (error) { return next(error); }
+    if (!pricing) return res.status(503).json({ error: "Pricing is not configured for that service." });
+    const presentation = presentationFor(category.slug);
+    const estimate = calculateEstimate({
+      baseMin: Number(pricing.basePriceMin),
+      baseMax: Number(pricing.basePriceMax),
+      emergencyFee: Number(pricing.emergencyFee),
+      commissionRate: Number(pricing.platformCommissionRate),
+      customerFee: Number(pricing.customerFee),
+      includedDistanceKm: Number(pricing.includedDistanceKm),
+      perKmRate: Number(pricing.perKmRate),
+    }, { isEmergency: parsed.data.urgency === "Emergency", distanceKm: 0 });
+    if (parsed.data.preferredAt && new Date(parsed.data.preferredAt) <= new Date()) return res.status(400).json({ error: "Preferred service time must be in the future." });
+    if (parsed.data.urgency === "Emergency") return res.status(400).json({ error: "Use the dedicated emergency dispatch flow for emergencies." });
+    const candidates = (await providerMatching.findMatches({
+      categoryId: category.id,
+      latitude: parsed.data.latitude === undefined ? null : String(parsed.data.latitude),
+      longitude: parsed.data.longitude === undefined ? null : String(parsed.data.longitude),
+      preferredAt: parsed.data.preferredAt ? new Date(parsed.data.preferredAt) : null,
+      budgetMin: parsed.data.budgetMin === undefined ? null : String(parsed.data.budgetMin),
+      budgetMax: parsed.data.budgetMax === undefined ? null : String(parsed.data.budgetMax),
+      isEmergency: false,
+    }))
+      .filter(({ profile }) => profile.userId !== currentUser(req)!.id)
+      .slice(0, 10);
+    const request = await db.transaction(async (tx) => {
+      const [created] = await tx.insert(serviceRequestsTable).values({
+        customerId: currentUser(req)!.id,
+        categoryId: category.id,
+        idempotencyKey,
+        payloadHash: idempotencyKey ? payloadHash : undefined,
+        status: candidates.length > 0 ? "SEARCHING" : "REQUESTED",
+        problemDescription: `${parsed.data.problem}\n${parsed.data.description}`,
+        address: parsed.data.address,
+        problemPhotos: parsed.data.problemPhotos ?? [],
+        latitude: parsed.data.latitude === undefined ? null : String(parsed.data.latitude),
+        longitude: parsed.data.longitude === undefined ? null : String(parsed.data.longitude),
+        preferredAt: parsed.data.preferredAt ? new Date(parsed.data.preferredAt) : null,
+        budgetMin: parsed.data.budgetMin === undefined ? null : String(parsed.data.budgetMin),
+        budgetMax: parsed.data.budgetMax === undefined ? null : String(parsed.data.budgetMax),
+        urgency: parsed.data.urgency ?? "STANDARD",
+        isEmergency: false,
+        estimatedPriceMin: String(estimate.minPrice),
+        estimatedPriceMax: String(estimate.maxPrice),
+      }).returning();
+      if (!created) throw new Error("Could not create the request.");
+      if (candidates.length > 0) {
+        await tx.insert(providerOffersTable).values(candidates.map(({ profile }) => ({
+          requestId: created.id,
+          technicianId: profile.id,
+          status: "OFFERED" as const,
+          expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+        }))).onConflictDoNothing();
+        await tx.insert(notificationsTable).values(candidates.map(({ profile }) => ({
+          userId: profile.userId,
+          type: "SERVICE_REQUEST",
+          title: "New service request",
+          body: `A customer is looking for help with ${category.name}.`,
+          payload: { requestId: created.id, serviceSlug: category.slug },
+        })));
+      }
+      return created;
+    });
+    return res.status(201).json({ ...(await requestResponse(request)), priceMin: estimate.minPrice, priceMax: estimate.maxPrice, arrival: presentation.arrival });
+  } catch (error) {
+    if (idempotencyKey && typeof error === "object" && error !== null && "code" in error && error.code === "23505") {
+      const [existing] = await db.select().from(serviceRequestsTable)
+        .where(eq(serviceRequestsTable.idempotencyKey, idempotencyKey)).limit(1);
+      if (existing && existing.customerId === currentUser(req)!.id && existing.payloadHash === payloadHash) {
+        return res.status(200).json(await requestResponse(existing));
+      }
+      return res.status(409).json({ error: "Idempotency key was already used for a different request." });
+    }
+    return next(error);
+  }
 });
 
 router.post("/bookings", requireRole("CUSTOMER"), async (req, res, next) => {
@@ -88,14 +376,43 @@ router.post("/bookings", requireRole("CUSTOMER"), async (req, res, next) => {
   try {
     const user = currentUser(req)!;
     const [request] = await db.select().from(serviceRequestsTable).where(and(eq(serviceRequestsTable.id, parsed.data.requestId), eq(serviceRequestsTable.customerId, user.id))).limit(1);
-    const [technician] = await db.select().from(technicianProfilesTable).where(or(eq(technicianProfilesTable.id, parsed.data.technicianId), eq(technicianProfilesTable.userId, parsed.data.technicianId))).limit(1);
-    if (!request || !technician || !technician.isAvailable || technician.verificationStatus !== "VERIFIED") return res.status(404).json({ error: "We couldn't find that request or provider." });
-    const [booking] = await db.transaction(async (tx) => {
-      const inserted = await tx.insert(bookingsTable).values({ requestId: request.id, customerId: user.id, technicianId: technician.id }).returning();
-      await tx.update(serviceRequestsTable).set({ technicianId: technician.id, status: "ASSIGNED", updatedAt: new Date() }).where(eq(serviceRequestsTable.id, request.id));
-      return inserted;
+    const [technicianRow] = await db.select({ profile: technicianProfilesTable, userId: usersTable.id }).from(technicianProfilesTable).innerJoin(usersTable, eq(technicianProfilesTable.userId, usersTable.id)).where(and(or(eq(technicianProfilesTable.id, parsed.data.technicianId), eq(technicianProfilesTable.userId, parsed.data.technicianId)), eq(usersTable.isActive, true))).limit(1);
+    const technician = technicianRow?.profile;
+    if (!request || !technician || technicianRow.userId === currentUser(req)!.id || !technician.isAvailable || technician.verificationStatus !== "VERIFIED") return res.status(404).json({ error: "We couldn't find that request or provider." });
+    const [skill] = await db.select({ categoryId: technicianSkillsTable.categoryId }).from(technicianSkillsTable)
+      .where(and(eq(technicianSkillsTable.technicianId, technician.id), eq(technicianSkillsTable.categoryId, request.categoryId)))
+      .limit(1);
+    if (!skill) return res.status(409).json({ error: "That provider does not list the requested service." });
+    const booking = await db.transaction(async (tx) => {
+      const [lockedRequest] = await tx.select().from(serviceRequestsTable)
+        .where(and(eq(serviceRequestsTable.id, request.id), eq(serviceRequestsTable.customerId, user.id)))
+        .limit(1)
+        .for("update");
+      if (!lockedRequest || !["REQUESTED", "SEARCHING"].includes(lockedRequest.status)) return undefined;
+      const [created] = await tx.insert(bookingsTable).values({
+        requestId: lockedRequest.id,
+        customerId: user.id,
+        technicianId: technician.id,
+        status: "ASSIGNED",
+      }).returning();
+      if (!created) return undefined;
+      await tx.update(serviceRequestsTable).set({ technicianId: technician.id, status: "ASSIGNED", updatedAt: new Date() }).where(eq(serviceRequestsTable.id, lockedRequest.id));
+      await tx.insert(bookingStatusHistoryTable).values({ bookingId: created.id, status: "ASSIGNED", changedBy: user.id });
+      await tx.insert(conversationsTable).values({ bookingId: created.id });
+      const [providerUser] = await tx.select({ userId: technicianProfilesTable.userId })
+        .from(technicianProfilesTable).where(eq(technicianProfilesTable.id, technician.id)).limit(1);
+      if (providerUser) {
+        await tx.insert(notificationsTable).values({
+          userId: providerUser.userId,
+          type: "BOOKING_ASSIGNED",
+          title: "New booking",
+          body: "A customer selected you for a service booking.",
+          payload: { bookingId: created.id },
+        });
+      }
+      return created;
     });
-    return booking ? res.status(201).json(await bookingResponse(booking)) : res.status(500).json({ error: "Could not create the booking." });
+    return booking ? res.status(201).json(await bookingResponse(booking)) : res.status(409).json({ error: "This service request has already been booked or is no longer available." });
   } catch (error) { return next(error); }
 });
 
@@ -104,7 +421,13 @@ router.get("/bookings/:id", requireAuth, async (req, res, next) => {
   if (!parsed.success) return res.status(404).json({ error: "Booking not found." });
   try {
     const user = currentUser(req)!;
-    const condition = user.roles.includes("ADMIN") ? eq(bookingsTable.id, parsed.data.id) : and(eq(bookingsTable.id, parsed.data.id), eq(bookingsTable.customerId, user.id));
+    const [provider] = await db.select({ id: technicianProfilesTable.id }).from(technicianProfilesTable).where(eq(technicianProfilesTable.userId, user.id)).limit(1);
+    const participant = provider
+      ? or(eq(bookingsTable.customerId, user.id), eq(bookingsTable.technicianId, provider.id))
+      : eq(bookingsTable.customerId, user.id);
+    const condition = user.roles.includes("ADMIN")
+      ? eq(bookingsTable.id, parsed.data.id)
+      : and(eq(bookingsTable.id, parsed.data.id), participant);
     const [booking] = await db.select().from(bookingsTable).where(condition).limit(1);
     return booking ? res.json(await bookingResponse(booking)) : res.status(404).json({ error: "Booking not found." });
   } catch (error) { return next(error); }
@@ -112,34 +435,103 @@ router.get("/bookings/:id", requireAuth, async (req, res, next) => {
 
 router.patch("/bookings/:id/status", requireAuth, async (req, res, next) => {
   const params = UpdateBookingStatusParams.safeParse(req.params);
-  const body = UpdateBookingStatusBody.safeParse(req.body);
+  const body = UpdateBookingStatusBody.extend({
+    quotedPrice: z.number().positive().optional(),
+  }).safeParse(req.body);
   if (!params.success || !body.success) return res.status(400).json({ error: "Invalid booking status." });
   try {
     const user = currentUser(req)!;
-    const [booking] = await db.select().from(bookingsTable).where(eq(bookingsTable.id, params.data.id)).limit(1);
-    if (!booking) return res.status(404).json({ error: "Booking not found." });
-    const [provider] = await db.select({ userId: technicianProfilesTable.userId }).from(technicianProfilesTable).where(eq(technicianProfilesTable.id, booking.technicianId)).limit(1);
-    const customerStatuses = ["CUSTOMER_CONFIRMED", "DISPUTED", "CANCELLED"];
-    const providerStatuses = ["ACCEPTED", "TECHNICIAN_EN_ROUTE", "ARRIVED", "IN_PROGRESS", "COMPLETED", "CANCELLED", "DISPUTED"];
-    const authorized = user.roles.includes("ADMIN") || (booking.customerId === user.id && customerStatuses.includes(body.data.status)) || (provider?.userId === user.id && providerStatuses.includes(body.data.status));
-    if (!authorized) return res.status(403).json({ error: "You cannot make that job update." });
-    if (!canTransition(booking.status, body.data.status)) return res.status(409).json({ error: `A job cannot move from ${booking.status} to ${body.data.status}.` });
-    const [updated] = await db.update(bookingsTable).set({ status: body.data.status, updatedAt: new Date() }).where(eq(bookingsTable.id, booking.id)).returning();
-    await db.update(serviceRequestsTable).set({ status: body.data.status, updatedAt: new Date() }).where(eq(serviceRequestsTable.id, booking.requestId));
-    if (body.data.status === "COMPLETED") {
-      await db.insert(serviceGuaranteesTable).values({ bookingId: booking.id, guaranteeDays: 7, validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), status: "ACTIVE" }).onConflictDoNothing();
-      await db.transaction(async (tx) => {
-        await tx.insert(loyaltyAccountsTable).values({ customerId: booking.customerId, points: 0 }).onConflictDoNothing();
-        const [account] = await tx.select().from(loyaltyAccountsTable).where(eq(loyaltyAccountsTable.customerId, booking.customerId)).limit(1);
-        if (!account) return;
-        const [reward] = await tx.select().from(loyaltyTransactionsTable).where(and(eq(loyaltyTransactionsTable.accountId, account.id), eq(loyaltyTransactionsTable.reason, `Completed service ${booking.id}`))).limit(1);
-        if (!reward) {
-          await tx.insert(loyaltyTransactionsTable).values({ accountId: account.id, points: 100, reason: `Completed service ${booking.id}` });
-          await tx.update(loyaltyAccountsTable).set({ points: account.points + 100, updatedAt: new Date() }).where(eq(loyaltyAccountsTable.id, account.id));
+    const result = await db.transaction(async (tx) => {
+      const [booking] = await tx.select().from(bookingsTable).where(eq(bookingsTable.id, params.data.id)).limit(1).for("update");
+      if (!booking) return { kind: "not-found" as const };
+      const [provider] = await tx.select({ userId: technicianProfilesTable.userId }).from(technicianProfilesTable)
+        .where(eq(technicianProfilesTable.id, booking.technicianId)).limit(1);
+      if (["PAID", "REFUNDED", "RATED"].includes(body.data.status)) return { kind: "protected-transition" as const };
+      const customerStatuses = ["CUSTOMER_CONFIRMED", "DISPUTED", "CANCELLED"];
+      const providerStatuses = ["ACCEPTED", "TECHNICIAN_EN_ROUTE", "ARRIVED", "IN_PROGRESS", "COMPLETED", "CANCELLED", "DISPUTED"];
+      const authorized = (booking.customerId === user.id && customerStatuses.includes(body.data.status))
+        || (provider?.userId === user.id && providerStatuses.includes(body.data.status));
+      if (!authorized) return { kind: "forbidden" as const };
+      if (!canTransition(booking.status, body.data.status)) return { kind: "invalid-transition" as const, current: booking.status };
+      let finalPrice = booking.finalPrice;
+      if (body.data.status === "ACCEPTED" && provider?.userId === user.id) {
+        const [request] = await tx.select().from(serviceRequestsTable)
+          .where(eq(serviceRequestsTable.id, booking.requestId)).limit(1);
+        const [pricing] = request
+          ? await tx.select({
+            pricingModel: technicianServicePricingTable.pricingModel,
+            amount: technicianServicePricingTable.amount,
+            minimumCharge: technicianServicePricingTable.minimumCharge,
+          }).from(technicianServicePricingTable).where(and(
+            eq(technicianServicePricingTable.technicianId, booking.technicianId),
+            eq(technicianServicePricingTable.categoryId, request.categoryId),
+          )).limit(1)
+          : [];
+        const resolved = resolveProviderPrice(pricing, body.data.quotedPrice);
+        if ("error" in resolved) return { kind: "invalid-price" as const, error: resolved.error };
+        if (request?.budgetMax !== null && request?.budgetMax !== undefined && resolved.price > Number(request.budgetMax)) {
+          return { kind: "over-budget" as const };
         }
+        finalPrice = String(resolved.price);
+      }
+      if (body.data.status === "CUSTOMER_CONFIRMED" && booking.finalPrice === null) return { kind: "missing-price" as const };
+      if (body.data.status === "COMPLETED" && booking.finalPrice === null) return { kind: "missing-price" as const };
+      const [updated] = await tx.update(bookingsTable).set({ status: body.data.status, finalPrice, updatedAt: new Date() })
+        .where(eq(bookingsTable.id, booking.id)).returning();
+      if (!updated) throw new Error("Booking state update returned no row.");
+      await tx.update(serviceRequestsTable).set({
+        status: body.data.status,
+        ...(body.data.status === "ACCEPTED" && finalPrice !== null ? { finalPrice } : {}),
+        updatedAt: new Date(),
+      })
+        .where(eq(serviceRequestsTable.id, booking.requestId));
+      await tx.insert(bookingStatusHistoryTable).values({
+        bookingId: booking.id,
+        status: body.data.status,
+        changedBy: user.id,
       });
-    }
-    return updated ? res.json(await bookingResponse(updated)) : res.status(500).json({ error: "Could not update the booking." });
+      const recipientId = booking.customerId === user.id ? provider?.userId : booking.customerId;
+      if (recipientId) {
+        await tx.insert(notificationsTable).values({
+          userId: recipientId,
+          type: "BOOKING_UPDATE",
+          title: "Booking updated",
+          body: `Your booking status is now ${body.data.status.toLowerCase().replaceAll("_", " ")}.`,
+          payload: { bookingId: booking.id, status: body.data.status },
+        });
+      }
+      if (body.data.status === "COMPLETED") {
+        await tx.insert(serviceGuaranteesTable).values({
+          bookingId: booking.id,
+          guaranteeDays: 7,
+          validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          status: "ACTIVE",
+        }).onConflictDoNothing();
+        await tx.insert(loyaltyAccountsTable).values({ customerId: booking.customerId, points: 0 }).onConflictDoNothing();
+        const [account] = await tx.select().from(loyaltyAccountsTable)
+          .where(eq(loyaltyAccountsTable.customerId, booking.customerId)).limit(1).for("update");
+        if (account) {
+          const reason = `Completed service ${booking.id}`;
+          const [reward] = await tx.select().from(loyaltyTransactionsTable)
+            .where(and(eq(loyaltyTransactionsTable.accountId, account.id), eq(loyaltyTransactionsTable.reason, reason)))
+            .limit(1);
+          if (!reward) {
+            await tx.insert(loyaltyTransactionsTable).values({ accountId: account.id, points: 100, reason });
+            await tx.update(loyaltyAccountsTable).set({ points: account.points + 100, updatedAt: new Date() })
+              .where(eq(loyaltyAccountsTable.id, account.id));
+          }
+        }
+      }
+      return { kind: "updated" as const, booking: updated };
+    });
+    if (result.kind === "not-found") return res.status(404).json({ error: "Booking not found." });
+    if (result.kind === "forbidden") return res.status(403).json({ error: "You cannot make that job update." });
+    if (result.kind === "invalid-transition") return res.status(409).json({ error: `A job cannot move from ${result.current} to ${body.data.status}.` });
+    if (result.kind === "protected-transition") return res.status(409).json({ error: "Payment, refund, and review states are controlled by their dedicated workflows." });
+    if (result.kind === "invalid-price") return res.status(409).json({ error: result.error });
+    if (result.kind === "over-budget") return res.status(409).json({ error: "The provider's price exceeds the customer's budget." });
+    if (result.kind === "missing-price") return res.status(409).json({ error: "A provider-confirmed final price is required before this status change." });
+    return res.json(await bookingResponse(result.booking));
   } catch (error) { return next(error); }
 });
 
@@ -177,18 +569,105 @@ router.get("/bookings/:id/invoice", requireAuth, async (req, res, next) => {
 
 router.post("/bookings/:id/payment", requireRole("CUSTOMER"), async (req, res, next) => {
   const parsed = GetBookingParams.safeParse(req.params);
-  const body = z.object({ phoneNumber: z.string().min(9), returnUrl: z.string().url() }).safeParse(req.body);
+  const body = z.object({ phoneNumber: z.string().min(9), email: z.string().email(), returnUrl: z.string().url() }).safeParse(req.body);
   if (!parsed.success || !body.success) return res.status(400).json({ error: "Provide valid payment details." });
   try {
     const user = currentUser(req)!;
-    const [booking] = await db.select().from(bookingsTable).where(and(eq(bookingsTable.id, parsed.data.id), eq(bookingsTable.customerId, user.id))).limit(1);
+    const [booking] = await db.select().from(bookingsTable)
+      .where(and(eq(bookingsTable.id, parsed.data.id), eq(bookingsTable.customerId, user.id)))
+      .limit(1);
     if (!booking) return res.status(404).json({ error: "Booking not found." });
+    if (booking.status !== "CUSTOMER_CONFIRMED") return res.status(409).json({ error: "Payment is available after the customer confirms the completed job." });
     const [request] = await db.select().from(serviceRequestsTable).where(eq(serviceRequestsTable.id, booking.requestId)).limit(1);
     if (!request) return res.status(404).json({ error: "Service request not found." });
     const amount = Number(booking.finalPrice ?? request.estimatedPriceMax);
-    const payment = await paymentProvider.initiatePayment({ bookingId: booking.id, amount, currency: "ETB", phoneNumber: body.data.phoneNumber, returnUrl: body.data.returnUrl });
-    const [record] = await db.insert(paymentsTable).values({ bookingId: booking.id, amount: String(amount), provider: paymentProvider.name, providerReference: payment.transactionId, status: "PENDING" }).onConflictDoUpdate({ target: paymentsTable.bookingId, set: { amount: String(amount), providerReference: payment.transactionId, status: "PENDING" } }).returning();
-    return record ? res.status(202).json({ paymentId: record.id, transactionId: payment.transactionId, status: record.status, redirectUrl: payment.redirectUrl }) : res.status(500).json({ error: "Could not start payment." });
+    const allowedOrigins = new Set<string>();
+    if (process.env.PUBLIC_APP_URL) allowedOrigins.add(new URL(process.env.PUBLIC_APP_URL).origin);
+    const requestOrigin = req.get("origin");
+    if (requestOrigin) allowedOrigins.add(new URL(requestOrigin).origin);
+    if (process.env.NODE_ENV === "production" && !allowedOrigins.has(new URL(body.data.returnUrl).origin)) {
+      return res.status(400).json({ error: "Payment return URL must belong to this application." });
+    }
+    const reservation = await db.transaction(async (tx) => {
+      const [lockedBooking] = await tx.select().from(bookingsTable)
+        .where(and(eq(bookingsTable.id, booking.id), eq(bookingsTable.customerId, user.id)))
+        .limit(1)
+        .for("update");
+      if (!lockedBooking || lockedBooking.status !== "CUSTOMER_CONFIRMED") return { kind: "booking-changed" as const };
+      let [record] = await tx.select().from(paymentsTable)
+        .where(eq(paymentsTable.bookingId, lockedBooking.id)).limit(1).for("update");
+      if (record?.status === "COMPLETED") return { kind: "already-paid" as const };
+      if (record?.status === "PROCESSING") return { kind: "processing" as const };
+      if (record?.status === "PENDING" && record.checkoutUrl && record.providerReference) {
+        return { kind: "ready" as const, record };
+      }
+      if (record) {
+        [record] = await tx.update(paymentsTable).set({
+          amount: String(amount),
+          provider: paymentProvider.name,
+          providerReference: null,
+          checkoutUrl: null,
+          status: "PROCESSING",
+          failureReason: null,
+          verifiedAt: null,
+          createdAt: new Date(),
+        }).where(eq(paymentsTable.id, record.id)).returning();
+      } else {
+        [record] = await tx.insert(paymentsTable).values({
+          bookingId: lockedBooking.id,
+          amount: String(amount),
+          provider: paymentProvider.name,
+          status: "PROCESSING",
+        }).returning();
+      }
+      return record ? { kind: "reserved" as const, record } : { kind: "failed" as const };
+    });
+    if (reservation.kind === "booking-changed") return res.status(409).json({ error: "Booking state changed; reload and retry payment." });
+    if (reservation.kind === "already-paid") return res.status(409).json({ error: "This booking is already paid." });
+    if (reservation.kind === "processing") return res.status(409).json({ error: "A payment attempt is already in progress." });
+    if (reservation.kind === "failed") return res.status(500).json({ error: "Could not reserve a payment attempt." });
+    if (reservation.kind === "ready") return res.status(202).json({
+      paymentId: reservation.record.id,
+      transactionId: reservation.record.providerReference,
+      status: reservation.record.status,
+      redirectUrl: reservation.record.checkoutUrl,
+    });
+
+    try {
+      const [customer] = await db.select({ fullName: usersTable.fullName }).from(usersTable)
+        .where(eq(usersTable.id, user.id)).limit(1);
+      const names = (customer?.fullName ?? "Melse customer").trim().split(/\s+/);
+      const payment = await paymentProvider.initiatePayment({
+        bookingId: booking.id,
+        amount,
+        currency: "ETB",
+        phoneNumber: body.data.phoneNumber,
+        email: body.data.email,
+        firstName: names[0] ?? "Customer",
+        lastName: names.slice(1).join(" ") || "Melse",
+        returnUrl: body.data.returnUrl,
+      });
+      const [record] = await db.update(paymentsTable).set({
+        providerReference: payment.transactionId,
+        checkoutUrl: payment.redirectUrl ?? null,
+        status: payment.status === "FAILED" ? "FAILED" : "PENDING",
+      }).where(and(eq(paymentsTable.id, reservation.record.id), eq(paymentsTable.status, "PROCESSING"))).returning();
+      if (!record || !payment.redirectUrl) throw new Error("Payment attempt could not be persisted.");
+      return res.status(202).json({
+        paymentId: record.id,
+        transactionId: payment.transactionId,
+        status: record.status,
+        redirectUrl: payment.redirectUrl,
+      });
+    } catch (error) {
+      await db.update(paymentsTable).set({
+        status: "FAILED",
+        failureReason: error instanceof Error ? error.message.slice(0, 500) : "Payment initialization failed.",
+      }).where(eq(paymentsTable.id, reservation.record.id));
+      if (error instanceof PaymentProviderUnavailableError) return res.status(503).json({ error: error.message });
+      if (error instanceof PaymentProviderRequestError) return res.status(502).json({ error: error.message });
+      return next(error);
+    }
   } catch (error) { return next(error); }
 });
 
@@ -200,10 +679,66 @@ router.post("/payments/:transactionId/verify", requireRole("CUSTOMER"), async (r
     if (!payment) return res.status(404).json({ error: "Payment not found." });
     const [booking] = await db.select({ customerId: bookingsTable.customerId }).from(bookingsTable).where(eq(bookingsTable.id, payment.bookingId)).limit(1);
     if (!booking || booking.customerId !== currentUser(req)!.id) return res.status(403).json({ error: "You do not have permission for this payment." });
+    if (payment.status === "COMPLETED") return res.json({ transactionId: transactionId.data, status: "SUCCESS", verified: true });
     const verified = await paymentProvider.verifyPayment(transactionId.data);
-    if (verified) await db.update(paymentsTable).set({ status: "COMPLETED" }).where(eq(paymentsTable.id, payment.id));
-    return res.json({ transactionId: transactionId.data, status: verified ? "SUCCESS" : "PENDING", verified });
-  } catch (error) { return next(error); }
+    if (!verified) return res.json({ transactionId: transactionId.data, status: "PENDING", verified: false });
+    const result = await completeVerifiedPayment(
+      transactionId.data,
+      `verify:${transactionId.data}`,
+      createHash("sha256").update(`verify:${transactionId.data}`).digest("hex"),
+      verified,
+    );
+    if (result.kind === "not-found") return res.status(404).json({ error: "Payment not found." });
+    if (result.kind === "booking-not-confirmed") return res.status(409).json({ error: "Booking must be customer-confirmed before payment can settle." });
+    if (result.kind === "verification-mismatch") return res.status(409).json({ error: "The verified payment details do not match the amount due; contact support." });
+    return res.json({ transactionId: transactionId.data, status: "SUCCESS", verified: true });
+  } catch (error) {
+    if (error instanceof PaymentProviderUnavailableError) return res.status(503).json({ error: error.message });
+    if (error instanceof PaymentProviderRequestError) return res.status(502).json({ error: error.message });
+    return next(error);
+  }
+});
+
+router.post("/payments/chapa/webhook", async (req, res, next) => {
+  const webhookSecret = process.env.CHAPA_WEBHOOK_SECRET;
+  const signature = req.get("x-chapa-signature");
+  const rawBody = (req as typeof req & { rawBody?: Buffer }).rawBody;
+  if (!webhookSecret) return res.status(503).json({ error: "Payment webhook verification is not configured." });
+  if (!signature || !rawBody) return res.status(401).json({ error: "Invalid payment webhook signature." });
+  const expected = createHmac("sha256", webhookSecret).update(rawBody).digest();
+  let received: Buffer;
+  try {
+    received = Buffer.from(signature, "hex");
+  } catch {
+    return res.status(401).json({ error: "Invalid payment webhook signature." });
+  }
+  if (received.length !== expected.length || !timingSafeEqual(received, expected)) {
+    return res.status(401).json({ error: "Invalid payment webhook signature." });
+  }
+  const body = z.object({
+    tx_ref: z.string().min(1).max(100),
+    status: z.string().min(1).max(40),
+  }).passthrough().safeParse(req.body);
+  if (!body.success) return res.status(400).json({ error: "Invalid payment webhook payload." });
+  try {
+    const verified = await paymentProvider.verifyPayment(body.data.tx_ref);
+    if (!verified) return res.status(202).json({ received: true, settled: false });
+    const payloadHash = createHash("sha256").update(rawBody).digest("hex");
+    const result = await completeVerifiedPayment(
+      body.data.tx_ref,
+      `${body.data.tx_ref}:${body.data.status}:${payloadHash}`,
+      payloadHash,
+      verified,
+    );
+    if (result.kind === "not-found") return res.status(404).json({ error: "Payment reference not found." });
+    if (result.kind === "booking-not-confirmed") return res.status(409).json({ error: "Booking must be customer-confirmed before payment can settle." });
+    if (result.kind === "verification-mismatch") return res.status(409).json({ error: "The verified payment details do not match the amount due." });
+    return res.status(200).json({ received: true, settled: true });
+  } catch (error) {
+    if (error instanceof PaymentProviderUnavailableError) return res.status(503).json({ error: error.message });
+    if (error instanceof PaymentProviderRequestError) return res.status(502).json({ error: error.message });
+    return next(error);
+  }
 });
 
 router.get("/bookings/:id/guarantee", requireAuth, async (req, res, next) => {
@@ -216,13 +751,6 @@ router.get("/bookings/:id/guarantee", requireAuth, async (req, res, next) => {
     if (!booking) return res.status(404).json({ error: "Guarantee not found." });
     const [guarantee] = await db.select().from(serviceGuaranteesTable).where(eq(serviceGuaranteesTable.bookingId, booking.id)).limit(1);
     return guarantee ? res.json({ id: guarantee.id, bookingId: guarantee.bookingId, guaranteeDays: guarantee.guaranteeDays, validUntil: guarantee.validUntil.toISOString(), status: guarantee.status }) : res.status(404).json({ error: "Guarantee not found." });
-  } catch (error) { return next(error); }
-});
-
-router.get("/notifications", requireAuth, async (req, res, next) => {
-  try {
-    const bookings = await db.select().from(bookingsTable).where(eq(bookingsTable.customerId, currentUser(req)!.id));
-    return res.json(bookings.map((booking) => ({ id: `booking-${booking.id}`, type: "BOOKING_UPDATE", bookingId: booking.id, title: `Booking ${booking.status.toLowerCase().replaceAll("_", " ")}`, read: false, createdAt: booking.updatedAt.toISOString() })));
   } catch (error) { return next(error); }
 });
 
@@ -320,10 +848,27 @@ router.get("/admin/pricing", requireRole("ADMIN"), async (_req, res, next) => {
 
 router.patch("/admin/pricing/:id", requireRole("ADMIN"), async (req, res, next) => {
   const id = z.string().uuid().safeParse(req.params.id);
-  const parsed = z.object({ basePriceMin: z.number().nonnegative(), basePriceMax: z.number().nonnegative(), emergencyFee: z.number().nonnegative(), platformCommissionRate: z.number().min(0).max(1) }).refine((value) => value.basePriceMax >= value.basePriceMin).safeParse(req.body);
+  const parsed = z.object({
+    basePriceMin: z.number().nonnegative(),
+    basePriceMax: z.number().nonnegative(),
+    emergencyFee: z.number().nonnegative(),
+    customerFee: z.number().nonnegative().optional(),
+    includedDistanceKm: z.number().nonnegative().optional(),
+    perKmRate: z.number().nonnegative().optional(),
+    platformCommissionRate: z.number().min(0).max(1),
+  }).refine((value) => value.basePriceMax >= value.basePriceMin).safeParse(req.body);
   if (!id.success || !parsed.success) return res.status(400).json({ error: "Invalid pricing rule." });
   try {
-    const [pricing] = await db.update(pricingRulesTable).set({ basePriceMin: String(parsed.data.basePriceMin), basePriceMax: String(parsed.data.basePriceMax), emergencyFee: String(parsed.data.emergencyFee), platformCommissionRate: String(parsed.data.platformCommissionRate), updatedAt: new Date() }).where(eq(pricingRulesTable.id, id.data)).returning();
+    const [pricing] = await db.update(pricingRulesTable).set({
+      basePriceMin: String(parsed.data.basePriceMin),
+      basePriceMax: String(parsed.data.basePriceMax),
+      emergencyFee: String(parsed.data.emergencyFee),
+      customerFee: parsed.data.customerFee === undefined ? undefined : String(parsed.data.customerFee),
+      includedDistanceKm: parsed.data.includedDistanceKm === undefined ? undefined : String(parsed.data.includedDistanceKm),
+      perKmRate: parsed.data.perKmRate === undefined ? undefined : String(parsed.data.perKmRate),
+      platformCommissionRate: String(parsed.data.platformCommissionRate),
+      updatedAt: new Date(),
+    }).where(eq(pricingRulesTable.id, id.data)).returning();
     return pricing ? res.json(pricing) : res.status(404).json({ error: "Pricing rule not found." });
   } catch (error) { return next(error); }
 });

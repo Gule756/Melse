@@ -1,5 +1,15 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { pool } from "@workspace/db";
+
+async function closePool() {
+  try {
+    await pool.end();
+  } catch (error) {
+    logger.error({ err: error }, "Error closing database pool");
+    process.exitCode = 1;
+  }
+}
 
 const rawPort = process.env["PORT"];
 
@@ -15,11 +25,33 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
-  }
+async function startServer() {
+  pool.on("error", (error: Error) => logger.error({ err: error }, "Idle database client error"));
+  await pool.query("SELECT 1");
+  const server = app.listen(port, () => logger.info({ port }, "Server listening"));
+  server.on("error", (error) => {
+    logger.error({ err: error }, "Error listening on port");
+    process.exitCode = 1;
+    void closePool();
+  });
 
-  logger.info({ port }, "Server listening");
+  const shutdown = (signal: NodeJS.Signals) => {
+    logger.info({ signal }, "Shutting down server");
+    server.close((error) => {
+      if (error) {
+        logger.error({ err: error }, "Error closing HTTP server");
+        process.exitCode = 1;
+      }
+      void closePool();
+    });
+  };
+
+  process.once("SIGTERM", shutdown);
+  process.once("SIGINT", shutdown);
+}
+
+startServer().catch((error: unknown) => {
+  logger.error({ err: error }, "Could not start API server");
+  process.exitCode = 1;
+  void closePool();
 });

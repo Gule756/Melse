@@ -41,6 +41,23 @@ export interface ServiceRequestInput {
   description: string;
   address: string;
   urgency?: string;
+  preferredAt?: string;
+  /** @minimum 0 */
+  budgetMin?: number;
+  /** @minimum 0 */
+  budgetMax?: number;
+  /**
+     * @minimum -90
+     * @maximum 90
+     */
+  latitude?: number;
+  /**
+     * @minimum -180
+     * @maximum 180
+     */
+  longitude?: number;
+  /** @maxItems 5 */
+  problemPhotos?: string[];
 }
 
 export interface BusinessRegistrationInput {
@@ -74,13 +91,20 @@ export interface BusinessAccountResponse {
   account: BusinessAccount;
 }
 
-export type ServiceRequest = ServiceRequestInput & {
+export type ServiceRequest = ServiceRequestInput & ({
   id: string;
+  status: string;
   createdAt: string;
   priceMin: number;
   priceMax: number;
   arrival: string;
-};
+  preferredAt?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  budgetMin?: number | null;
+  budgetMax?: number | null;
+  problemPhotos?: string[];
+});
 
 export interface BookingInput {
   requestId: string;
@@ -118,6 +142,7 @@ export interface Booking {
   status: BookingStatus;
   priceMin: number;
   priceMax: number;
+  finalPrice: number | null;
   eta: string;
   createdAt: string;
   progress: number;
@@ -146,6 +171,8 @@ export const BookingStatusInputStatus = {
 
 export interface BookingStatusInput {
   status: BookingStatusInputStatus;
+  /** @exclusiveMinimum 0 */
+  quotedPrice?: number;
 }
 
 export interface DashboardSummary {
@@ -287,8 +314,264 @@ export interface AnalyticsSummary {
   trustStats?: AnalyticsSummaryTrustStats;
 }
 
+export type RegisterUserApiBody = {
+  /**
+     * @minLength 2
+     * @maxLength 100
+     */
+  fullName: string;
+  /**
+     * @minLength 9
+     * @maxLength 20
+     */
+  phoneNumber: string;
+  /**
+     * @minLength 8
+     * @maxLength 256
+     */
+  password: string;
+};
+
+export type LoginUserApiBody = {
+  phoneNumber: string;
+  password: string;
+};
+
+export type UpdateProviderServicesApiBodyServicesItemPricingModel = typeof UpdateProviderServicesApiBodyServicesItemPricingModel[keyof typeof UpdateProviderServicesApiBodyServicesItemPricingModel];
+
+
+export const UpdateProviderServicesApiBodyServicesItemPricingModel = {
+  FIXED: 'FIXED',
+  HOURLY: 'HOURLY',
+  QUOTE: 'QUOTE',
+} as const;
+
+export type UpdateProviderServicesApiBodyServicesItem = {
+  categorySlug: string;
+  pricingModel: UpdateProviderServicesApiBodyServicesItemPricingModel;
+  /** @minimum 0 */
+  amount: number | null;
+  /** @minimum 0 */
+  minimumCharge?: number | null;
+};
+
+export type UpdateProviderServicesApiBody = {
+  /** @maxItems 100 */
+  services: UpdateProviderServicesApiBodyServicesItem[];
+};
+
+export type UpdateProviderAvailabilityApiBodyAvailabilityItem = {
+  /**
+     * @minimum 0
+     * @maximum 6
+     */
+  dayOfWeek: number;
+  /** @pattern ^(?:[01]\d|2[0-3]):[0-5]\d$ */
+  startsAt: string;
+  /** @pattern ^(?:[01]\d|2[0-3]):[0-5]\d$ */
+  endsAt: string;
+  isAvailable: boolean;
+};
+
+export type UpdateProviderAvailabilityApiBody = {
+  /** @maxItems 42 */
+  availability: UpdateProviderAvailabilityApiBodyAvailabilityItem[];
+};
+
+export type RespondToProviderRequestApiBodyDecision = typeof RespondToProviderRequestApiBodyDecision[keyof typeof RespondToProviderRequestApiBodyDecision];
+
+
+export const RespondToProviderRequestApiBodyDecision = {
+  ACCEPT: 'ACCEPT',
+  DECLINE: 'DECLINE',
+} as const;
+
+export type RespondToProviderRequestApiBody = {
+  decision: RespondToProviderRequestApiBodyDecision;
+  /** @exclusiveMinimum 0 */
+  quotedPrice?: number;
+  /** @maxLength 1000 */
+  message?: string;
+};
+
+export type CreateEmergencyRequestApiBodyEmergencyType = typeof CreateEmergencyRequestApiBodyEmergencyType[keyof typeof CreateEmergencyRequestApiBodyEmergencyType];
+
+
+export const CreateEmergencyRequestApiBodyEmergencyType = {
+  LOCKSMITH: 'LOCKSMITH',
+  PLUMBING: 'PLUMBING',
+  ELECTRICAL: 'ELECTRICAL',
+  ROADSIDE: 'ROADSIDE',
+  OTHER: 'OTHER',
+} as const;
+
+export type CreateEmergencyRequestApiBody = {
+  serviceSlug: string;
+  emergencyType: CreateEmergencyRequestApiBodyEmergencyType;
+  /**
+     * @minLength 2
+     * @maxLength 200
+     */
+  problem: string;
+  /**
+     * @minLength 5
+     * @maxLength 3000
+     */
+  description: string;
+  /**
+     * @minLength 4
+     * @maxLength 1000
+     */
+  address: string;
+  /**
+     * @minimum -90
+     * @maximum 90
+     */
+  latitude: number;
+  /**
+     * @minimum -180
+     * @maximum 180
+     */
+  longitude: number;
+  safetyAcknowledged: true;
+};
+
+export type ShareProviderLocationApiBody = {
+  /**
+     * @minimum -90
+     * @maximum 90
+     */
+  latitude: number;
+  /**
+     * @minimum -180
+     * @maximum 180
+     */
+  longitude: number;
+  sharingEnabled: true;
+};
+
+export type ListConversationMessagesApiParams = {
+before?: string;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+};
+
+export type SendConversationMessageApiBody = {
+  /** @maxLength 4000 */
+  body?: string;
+  /** HTTPS attachment URL */
+  attachmentUrl?: string;
+};
+
+export type CreateBookingReviewApiBody = {
+  /**
+     * @minimum 1
+     * @maximum 5
+     */
+  rating: number;
+  /** @maxLength 2000 */
+  comment?: string;
+};
+
+export type OpenBookingDisputeApiBodyReason = typeof OpenBookingDisputeApiBodyReason[keyof typeof OpenBookingDisputeApiBodyReason];
+
+
+export const OpenBookingDisputeApiBodyReason = {
+  QUALITY: 'QUALITY',
+  NO_SHOW: 'NO_SHOW',
+  SAFETY: 'SAFETY',
+  PRICE: 'PRICE',
+  DAMAGE: 'DAMAGE',
+  OTHER: 'OTHER',
+} as const;
+
+export type OpenBookingDisputeApiBody = {
+  reason: OpenBookingDisputeApiBodyReason;
+  /**
+     * @minLength 10
+     * @maxLength 5000
+     */
+  description: string;
+  /** @maxItems 10 */
+  evidenceUrls?: string[];
+};
+
+export type ResolveAdminDisputeApiBodyStatus = typeof ResolveAdminDisputeApiBodyStatus[keyof typeof ResolveAdminDisputeApiBodyStatus];
+
+
+export const ResolveAdminDisputeApiBodyStatus = {
+  UNDER_REVIEW: 'UNDER_REVIEW',
+  RESOLVED_CUSTOMER: 'RESOLVED_CUSTOMER',
+  RESOLVED_PROVIDER: 'RESOLVED_PROVIDER',
+  CLOSED: 'CLOSED',
+} as const;
+
+export type ResolveAdminDisputeApiBody = {
+  status: ResolveAdminDisputeApiBodyStatus;
+  /**
+     * @minLength 10
+     * @maxLength 5000
+     */
+  resolution: string;
+};
+
+export type UpdateAdminUserStatusApiBody = {
+  isActive: boolean;
+};
+
+export type UpdateAdminUserRoleApiBodyRole = typeof UpdateAdminUserRoleApiBodyRole[keyof typeof UpdateAdminUserRoleApiBodyRole];
+
+
+export const UpdateAdminUserRoleApiBodyRole = {
+  CUSTOMER: 'CUSTOMER',
+  PROVIDER: 'PROVIDER',
+} as const;
+
+export type UpdateAdminUserRoleApiBody = {
+  role: UpdateAdminUserRoleApiBodyRole;
+  enabled?: boolean;
+};
+
+export type RequestProviderPayoutApiBody = {
+  /** @exclusiveMinimum 0 */
+  amount: number;
+};
+
+export type ProcessAdminPayoutApiBodyDecision = typeof ProcessAdminPayoutApiBodyDecision[keyof typeof ProcessAdminPayoutApiBodyDecision];
+
+
+export const ProcessAdminPayoutApiBodyDecision = {
+  COMPLETE: 'COMPLETE',
+  REJECT: 'REJECT',
+} as const;
+
+export type ProcessAdminPayoutApiBody = {
+  decision: ProcessAdminPayoutApiBodyDecision;
+  /** @maxLength 120 */
+  transferReference?: string;
+  /** HTTPS transfer proof URL */
+  proofUrl?: string;
+  /**
+     * @minLength 5
+     * @maxLength 1000
+     */
+  note: string;
+};
+
+export type ListServicesParams = {
+/**
+ * @maxLength 120
+ */
+q?: string;
+};
+
 export type ListTechniciansParams = {
 serviceSlug?: string;
 requestId?: string;
+latitude?: number;
+longitude?: number;
 };
 

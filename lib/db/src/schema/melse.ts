@@ -1,9 +1,12 @@
 import { createInsertSchema } from "drizzle-zod";
+import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   decimal,
   integer,
   index,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -15,9 +18,14 @@ import {
 import { z } from "zod/v4";
 
 export const userRoleEnum = pgEnum("user_role", ["CUSTOMER", "PROVIDER", "ADMIN", "BUSINESS"]);
+export const userModeEnum = pgEnum("user_mode", ["CUSTOMER", "PROVIDER", "ADMIN"]);
 export const verificationStatusEnum = pgEnum("verification_status", ["PENDING", "UNDER_REVIEW", "VERIFIED", "SUSPENDED", "REJECTED"]);
 export const jobStatusEnum = pgEnum("job_status", ["REQUESTED", "SEARCHING", "ASSIGNED", "ACCEPTED", "TECHNICIAN_EN_ROUTE", "ARRIVED", "IN_PROGRESS", "COMPLETED", "CUSTOMER_CONFIRMED", "PAID", "RATED", "CANCELLED", "DISPUTED", "REFUNDED", "REASSIGNED"]);
 export const paymentStatusEnum = pgEnum("payment_status", ["PENDING", "PROCESSING", "COMPLETED", "FAILED", "REFUNDED"]);
+export const providerPricingModelEnum = pgEnum("provider_pricing_model", ["FIXED", "HOURLY", "QUOTE"]);
+export const providerOfferStatusEnum = pgEnum("provider_offer_status", ["OFFERED", "ACCEPTED", "DECLINED", "WITHDRAWN", "EXPIRED"]);
+export const disputeStatusEnum = pgEnum("dispute_status", ["OPEN", "UNDER_REVIEW", "RESOLVED_CUSTOMER", "RESOLVED_PROVIDER", "PARTIALLY_REFUNDED", "CLOSED"]);
+export const ledgerEntryTypeEnum = pgEnum("ledger_entry_type", ["CUSTOMER_PAYMENT", "PLATFORM_COMMISSION", "PROVIDER_EARNING", "REFUND", "PAYOUT"]);
 
 export const usersTable = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -25,6 +33,7 @@ export const usersTable = pgTable("users", {
   fullName: varchar("full_name", { length: 100 }).notNull(),
   passwordHash: text("password_hash").notNull(),
   role: userRoleEnum("role").default("CUSTOMER").notNull(),
+  activeMode: userModeEnum("active_mode").default("CUSTOMER").notNull(),
   avatarUrl: text("avatar_url"),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -121,7 +130,9 @@ export const sessionsTable = pgTable("sessions", {
   tokenHash: varchar("token_hash", { length: 128 }).unique().notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+  userExpiryIndex: index("sessions_user_expiry_idx").on(table.userId, table.expiresAt),
+}));
 
 export const passwordResetTokensTable = pgTable("password_reset_tokens", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -130,7 +141,9 @@ export const passwordResetTokensTable = pgTable("password_reset_tokens", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   usedAt: timestamp("used_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+  userExpiryIndex: index("password_reset_tokens_user_expiry_idx").on(table.userId, table.expiresAt),
+}));
 
 export const serviceCategoriesTable = pgTable("service_categories", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -147,6 +160,9 @@ export const pricingRulesTable = pgTable("pricing_rules", {
   basePriceMin: decimal("base_price_min", { precision: 10, scale: 2 }).notNull(),
   basePriceMax: decimal("base_price_max", { precision: 10, scale: 2 }).notNull(),
   emergencyFee: decimal("emergency_fee", { precision: 10, scale: 2 }).default("0").notNull(),
+  customerFee: decimal("customer_fee", { precision: 10, scale: 2 }).default("0").notNull(),
+  includedDistanceKm: decimal("included_distance_km", { precision: 6, scale: 2 }).default("5").notNull(),
+  perKmRate: decimal("per_km_rate", { precision: 10, scale: 2 }).default("30").notNull(),
   platformCommissionRate: decimal("platform_commission_rate", { precision: 5, scale: 4 }).default("0.15").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -160,18 +176,56 @@ export const technicianProfilesTable = pgTable("technician_profiles", {
   bio: text("bio"),
   hourlyRate: decimal("hourly_rate", { precision: 10, scale: 2 }),
   serviceArea: varchar("service_area", { length: 120 }),
-  ratingAvg: decimal("rating_avg", { precision: 3, scale: 2 }).default("5").notNull(),
+  ratingAvg: decimal("rating_avg", { precision: 3, scale: 2 }).default("0").notNull(),
   ratingCount: integer("rating_count").default(0).notNull(),
   isAvailable: boolean("is_available").default(false).notNull(),
   currentLatitude: decimal("current_latitude", { precision: 10, scale: 8 }),
   currentLongitude: decimal("current_longitude", { precision: 11, scale: 8 }),
+  locationUpdatedAt: timestamp("location_updated_at", { withTimezone: true }),
+  serviceRadiusKm: decimal("service_radius_km", { precision: 6, scale: 2 }).default("15").notNull(),
+  emergencyEligible: boolean("emergency_eligible").default(false).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+  availabilityVerificationIndex: index("technician_profiles_verification_availability_idx").on(table.verificationStatus, table.isAvailable),
+  experienceNonnegative: check("technician_profiles_experience_years_check", sql`${table.experienceYears} >= 0`),
+  hourlyRateNonnegative: check("technician_profiles_hourly_rate_check", sql`${table.hourlyRate} IS NULL OR ${table.hourlyRate} >= 0`),
+  serviceRadiusNonnegative: check("technician_profiles_service_radius_check", sql`${table.serviceRadiusKm} > 0`),
+}));
 
 export const technicianSkillsTable = pgTable("technician_skills", {
   technicianId: uuid("technician_id").references(() => technicianProfilesTable.id, { onDelete: "cascade" }).notNull(),
   categoryId: uuid("category_id").references(() => serviceCategoriesTable.id, { onDelete: "cascade" }).notNull(),
-});
+}, (table) => ({
+  technicianCategoryUnique: uniqueIndex("technician_skills_technician_category_unique").on(table.technicianId, table.categoryId),
+  categoryIndex: index("technician_skills_category_idx").on(table.categoryId),
+}));
+
+export const technicianServicePricingTable = pgTable("technician_service_pricing", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  technicianId: uuid("technician_id").references(() => technicianProfilesTable.id, { onDelete: "cascade" }).notNull(),
+  categoryId: uuid("category_id").references(() => serviceCategoriesTable.id, { onDelete: "cascade" }).notNull(),
+  pricingModel: providerPricingModelEnum("pricing_model").notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }),
+  minimumCharge: decimal("minimum_charge", { precision: 10, scale: 2 }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  technicianCategoryUnique: uniqueIndex("technician_service_pricing_unique").on(table.technicianId, table.categoryId),
+  nonnegativeAmount: check("technician_service_pricing_amount_check", sql`${table.amount} IS NULL OR ${table.amount} >= 0`),
+  nonnegativeMinimum: check("technician_service_pricing_minimum_check", sql`${table.minimumCharge} IS NULL OR ${table.minimumCharge} >= 0`),
+}));
+
+export const providerAvailabilityTable = pgTable("provider_availability", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  technicianId: uuid("technician_id").references(() => technicianProfilesTable.id, { onDelete: "cascade" }).notNull(),
+  dayOfWeek: integer("day_of_week").notNull(),
+  startsAt: varchar("starts_at", { length: 5 }).notNull(),
+  endsAt: varchar("ends_at", { length: 5 }).notNull(),
+  isAvailable: boolean("is_available").default(true).notNull(),
+}, (table) => ({
+  technicianDayIndex: index("provider_availability_technician_day_idx").on(table.technicianId, table.dayOfWeek),
+  validDay: check("provider_availability_day_check", sql`${table.dayOfWeek} BETWEEN 0 AND 6`),
+  timeOrder: check("provider_availability_time_check", sql`${table.startsAt} < ${table.endsAt}`),
+}));
 
 export const customerAddressesTable = pgTable("customer_addresses", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -189,12 +243,19 @@ export const serviceRequestsTable = pgTable("service_requests", {
   customerId: uuid("customer_id").references(() => usersTable.id, { onDelete: "restrict" }).notNull(),
   technicianId: uuid("technician_id").references(() => technicianProfilesTable.id, { onDelete: "set null" }),
   categoryId: uuid("category_id").references(() => serviceCategoriesTable.id, { onDelete: "restrict" }).notNull(),
+  idempotencyKey: varchar("idempotency_key", { length: 160 }).unique(),
+  payloadHash: varchar("payload_hash", { length: 64 }),
   status: jobStatusEnum("status").default("REQUESTED").notNull(),
   problemDescription: text("problem_description").notNull(),
   address: text("address").notNull(),
   problemPhotos: text("problem_photos").array(),
-  latitude: decimal("latitude", { precision: 10, scale: 8 }).notNull(),
-  longitude: decimal("longitude", { precision: 11, scale: 8 }).notNull(),
+  latitude: decimal("latitude", { precision: 10, scale: 8 }),
+  longitude: decimal("longitude", { precision: 11, scale: 8 }),
+  preferredAt: timestamp("preferred_at", { withTimezone: true }),
+  budgetMin: decimal("budget_min", { precision: 10, scale: 2 }),
+  budgetMax: decimal("budget_max", { precision: 10, scale: 2 }),
+  urgency: varchar("urgency", { length: 24 }).default("STANDARD").notNull(),
+  isEmergency: boolean("is_emergency").default(false).notNull(),
   estimatedPriceMin: decimal("estimated_price_min", { precision: 10, scale: 2 }).notNull(),
   estimatedPriceMax: decimal("estimated_price_max", { precision: 10, scale: 2 }).notNull(),
   finalPrice: decimal("final_price", { precision: 10, scale: 2 }),
@@ -204,6 +265,23 @@ export const serviceRequestsTable = pgTable("service_requests", {
 }, (table) => ({
   customerStatusIndex: index("service_requests_customer_status_idx").on(table.customerId, table.status),
   technicianStatusIndex: index("service_requests_technician_status_idx").on(table.technicianId, table.status),
+  validLocation: check("service_requests_location_pair_check", sql`(${table.latitude} IS NULL) = (${table.longitude} IS NULL)`),
+  validBudget: check("service_requests_budget_check", sql`${table.budgetMin} IS NULL OR ${table.budgetMax} IS NULL OR ${table.budgetMax} >= ${table.budgetMin}`),
+}));
+
+export const providerOffersTable = pgTable("provider_offers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  requestId: uuid("request_id").references(() => serviceRequestsTable.id, { onDelete: "cascade" }).notNull(),
+  technicianId: uuid("technician_id").references(() => technicianProfilesTable.id, { onDelete: "cascade" }).notNull(),
+  status: providerOfferStatusEnum("status").default("OFFERED").notNull(),
+  quotedPrice: decimal("quoted_price", { precision: 10, scale: 2 }),
+  message: text("message"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  respondedAt: timestamp("responded_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  requestTechnicianUnique: uniqueIndex("provider_offers_request_technician_unique").on(table.requestId, table.technicianId),
+  technicianStatusIndex: index("provider_offers_technician_status_idx").on(table.technicianId, table.status, table.expiresAt),
 }));
 
 export const bookingsTable = pgTable("bookings", {
@@ -234,10 +312,36 @@ export const paymentsTable = pgTable("payments", {
   bookingId: uuid("booking_id").references(() => bookingsTable.id, { onDelete: "restrict" }).unique().notNull(),
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
   provider: varchar("provider", { length: 50 }).notNull(),
-  providerReference: varchar("provider_reference", { length: 100 }),
+  providerReference: varchar("provider_reference", { length: 100 }).unique(),
+  checkoutUrl: text("checkout_url"),
   status: paymentStatusEnum("status").default("PENDING").notNull(),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  failureReason: varchar("failure_reason", { length: 500 }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const paymentWebhookEventsTable = pgTable("payment_webhook_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  provider: varchar("provider", { length: 50 }).notNull(),
+  eventId: varchar("event_id", { length: 160 }).notNull(),
+  payloadHash: varchar("payload_hash", { length: 64 }).notNull(),
+  processedAt: timestamp("processed_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  providerEventUnique: uniqueIndex("payment_webhook_events_provider_event_unique").on(table.provider, table.eventId),
+}));
+
+export const auditLogsTable = pgTable("audit_logs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  actorId: uuid("actor_id").references(() => usersTable.id, { onDelete: "set null" }),
+  action: varchar("action", { length: 100 }).notNull(),
+  entityType: varchar("entity_type", { length: 80 }).notNull(),
+  entityId: varchar("entity_id", { length: 160 }).notNull(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  entityCreatedIndex: index("audit_logs_entity_created_idx").on(table.entityType, table.entityId, table.createdAt),
+  actorCreatedIndex: index("audit_logs_actor_created_idx").on(table.actorId, table.createdAt),
+}));
 
 export const reviewsTable = pgTable("reviews", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -248,6 +352,102 @@ export const reviewsTable = pgTable("reviews", {
   comment: text("comment"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const disputesTable = pgTable("disputes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  bookingId: uuid("booking_id").references(() => bookingsTable.id, { onDelete: "restrict" }).unique().notNull(),
+  openedBy: uuid("opened_by").references(() => usersTable.id, { onDelete: "restrict" }).notNull(),
+  reason: varchar("reason", { length: 80 }).notNull(),
+  description: text("description").notNull(),
+  status: disputeStatusEnum("status").default("OPEN").notNull(),
+  resolution: text("resolution"),
+  resolvedBy: uuid("resolved_by").references(() => usersTable.id),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const disputeEvidenceTable = pgTable("dispute_evidence", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  disputeId: uuid("dispute_id").references(() => disputesTable.id, { onDelete: "cascade" }).notNull(),
+  submittedBy: uuid("submitted_by").references(() => usersTable.id, { onDelete: "restrict" }).notNull(),
+  url: text("url").notNull(),
+  description: varchar("description", { length: 500 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const ledgerEntriesTable = pgTable("ledger_entries", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  bookingId: uuid("booking_id").references(() => bookingsTable.id, { onDelete: "restrict" }).notNull(),
+  userId: uuid("user_id").references(() => usersTable.id, { onDelete: "restrict" }),
+  type: ledgerEntryTypeEnum("type").notNull(),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 3 }).default("ETB").notNull(),
+  idempotencyKey: varchar("idempotency_key", { length: 160 }).unique().notNull(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  bookingIndex: index("ledger_entries_booking_idx").on(table.bookingId, table.createdAt),
+  nonzeroAmount: check("ledger_entries_amount_check", sql`${table.amount} <> 0`),
+}));
+
+export const providerPayoutsTable = pgTable("provider_payouts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  technicianId: uuid("technician_id").references(() => technicianProfilesTable.id, { onDelete: "restrict" }).notNull(),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 3 }).default("ETB").notNull(),
+  status: varchar("status", { length: 20 }).default("PENDING").notNull(),
+  providerReference: varchar("provider_reference", { length: 120 }),
+  proofUrl: text("proof_url"),
+  idempotencyKey: varchar("idempotency_key", { length: 160 }).unique().notNull(),
+  requestedAt: timestamp("requested_at", { withTimezone: true }).defaultNow().notNull(),
+  processedAt: timestamp("processed_at", { withTimezone: true }),
+}, (table) => ({
+  nonnegativeAmount: check("provider_payout_amount_check", sql`${table.amount} > 0`),
+}));
+
+export const emergencyRequestsTable = pgTable("emergency_requests", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  requestId: uuid("request_id").references(() => serviceRequestsTable.id, { onDelete: "restrict" }).unique().notNull(),
+  emergencyType: varchar("emergency_type", { length: 80 }).notNull(),
+  safetyAcknowledgedAt: timestamp("safety_acknowledged_at", { withTimezone: true }).notNull(),
+  status: varchar("status", { length: 24 }).default("DISPATCHING").notNull(),
+  etaMinutes: integer("eta_minutes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const conversationsTable = pgTable("conversations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  bookingId: uuid("booking_id").references(() => bookingsTable.id, { onDelete: "cascade" }).unique().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  lastMessageAt: timestamp("last_message_at", { withTimezone: true }),
+});
+
+export const messagesTable = pgTable("messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  conversationId: uuid("conversation_id").references(() => conversationsTable.id, { onDelete: "cascade" }).notNull(),
+  senderId: uuid("sender_id").references(() => usersTable.id, { onDelete: "restrict" }).notNull(),
+  body: text("body").notNull(),
+  attachmentUrl: text("attachment_url"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  readAt: timestamp("read_at", { withTimezone: true }),
+}, (table) => ({
+  conversationCreatedIndex: index("messages_conversation_created_idx").on(table.conversationId, table.createdAt),
+  nonemptyBody: check("messages_body_check", sql`length(trim(${table.body})) > 0 OR ${table.attachmentUrl} IS NOT NULL`),
+}));
+
+export const notificationsTable = pgTable("notifications", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => usersTable.id, { onDelete: "cascade" }).notNull(),
+  type: varchar("type", { length: 50 }).notNull(),
+  title: varchar("title", { length: 160 }).notNull(),
+  body: text("body").notNull(),
+  payload: jsonb("payload").$type<Record<string, unknown>>().default({}).notNull(),
+  readAt: timestamp("read_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  userCreatedIndex: index("notifications_user_created_idx").on(table.userId, table.createdAt),
+}));
 
 export const serviceGuaranteesTable = pgTable("service_guarantees", {
   id: uuid("id").defaultRandom().primaryKey(),

@@ -9,4 +9,6 @@
 export type ListTechniciansParams = {
 serviceSlug?: string;
 requestId?: string;
+latitude?: number;
+longitude?: number;
 };

@@ -7,10 +7,17 @@
  */
 import type { ServiceRequestInput } from './serviceRequestInput';
 
-export type ServiceRequest = ServiceRequestInput & {
+export type ServiceRequest = ServiceRequestInput & ({
   id: string;
+  status: string;
   createdAt: string;
   priceMin: number;
   priceMax: number;
   arrival: string;
-};
+  preferredAt?: Date | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  budgetMin?: number | null;
+  budgetMax?: number | null;
+  problemPhotos?: string[];
+});
