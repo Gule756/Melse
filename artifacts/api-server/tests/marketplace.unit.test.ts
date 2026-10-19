@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
+import { normalizePhone } from "../src/lib/auth";
 import { canTransition } from "../src/lib/job-state";
 import { calculateEstimate, resolveProviderPrice } from "../src/lib/pricing";
+
+describe("Ethiopian phone normalization", () => {
+  it("normalizes 07 and +2517 phone numbers", () => {
+    expect(normalizePhone("0707402736")).toBe("+251707402736");
+    expect(normalizePhone("+251707402736")).toBe("+251707402736");
+  });
+
+  it("continues to normalize 09 and +2519 phone numbers", () => {
+    expect(normalizePhone("0911223344")).toBe("+251911223344");
+    expect(normalizePhone("+251911223344")).toBe("+251911223344");
+  });
+});
 
 describe("provider price resolution", () => {
   it("uses configured fixed price and enforces a minimum charge", () => {

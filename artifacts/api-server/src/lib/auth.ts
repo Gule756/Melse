@@ -43,10 +43,10 @@ async function verifyPassword(password: string, storedHash: string) {
   return expected.length === derivedKey.length && timingSafeEqual(expected, derivedKey);
 }
 
-function normalizePhone(phoneNumber: string) {
+export function normalizePhone(phoneNumber: string) {
   const compact = phoneNumber.replace(/[\s()-]/g, "");
-  if (/^09\d{8}$/.test(compact)) return `+251${compact.slice(1)}`;
-  if (/^\+2519\d{8}$/.test(compact)) return compact;
+  if (/^0[79]\d{8}$/.test(compact)) return `+251${compact.slice(1)}`;
+  if (/^\+251[79]\d{8}$/.test(compact)) return compact;
   throw new Error("Enter a valid Ethiopian phone number.");
 }
 
@@ -203,4 +203,4 @@ export async function completePasswordReset(token: string, password: string) {
   });
 }
 
-export { SESSION_COOKIE, normalizePhone, hashPassword };
+export { SESSION_COOKIE, hashPassword };
